@@ -35,9 +35,8 @@ from buysheet_v2.judge import (
     judge_page,
     merge_judge_into_confidence,
 )
-from buysheet_v2.schemas.extraction_result import (
-    CardConfidence, CatalogExtraction,
-)
+from buysheet_v2.schemas.extraction_result import CatalogExtraction
+from buysheet_v2.verify import verify_catalog
 
 
 def estimate_cost(num_pages: int) -> float:
@@ -69,7 +68,7 @@ def judge_one(sidecar: Path, *, update_in_place: bool = False) -> dict:
 
     judge_by_page = {}
     total_cost = 0.0
-    for i, page in enumerate(doc.pages, 1):
+    for page in doc.pages:
         page_extract = next((pe for pe in ext.pages if pe.page == page.page_no), None)
         if not page_extract or not page_extract.cards:
             continue
@@ -85,11 +84,15 @@ def judge_one(sidecar: Path, *, update_in_place: bool = False) -> dict:
         except Exception as e:
             print(f"FAILED ({type(e).__name__}: {e})")
 
-    # Initialize confidence list if missing
-    if not ext.confidence:
-        ext.confidence = [
-            CardConfidence(sku=c.sku, page=c.page) for c in ext.all_cards
-        ]
+    # Run the semantic oracle so we can cross-reference judge disagreements
+    # against source-text-verified Sonnet values. Oracle is the highest
+    # authority (it checks against the actual PDF text), so when Sonnet has
+    # a value the oracle confirmed in source AND Opus disagreed, the judge
+    # disagreement is a false alarm — Opus drifted on a dense page or
+    # made a vision error. We surface only the disagreements where the
+    # oracle ALSO can't validate Sonnet's value, which is the real
+    # review-worthy population.
+    ext = verify_catalog(ext)
     counts = merge_judge_into_confidence(
         ext.confidence, ext.all_cards, judge_by_page,
     )
@@ -98,9 +101,35 @@ def judge_one(sidecar: Path, *, update_in_place: bool = False) -> dict:
     print(f"\n  === JUDGE RESULT ===")
     print(f"  Total field comparisons: {counts['total_compared']}")
     print(f"  Agreed (Sonnet == Opus): {counts['agree']:>6} ({100*counts['agree']/total:.1f}%)")
-    print(f"  Disagreed:                {counts['disagree']:>6} ({100*counts['disagree']/total:.1f}%)")
+    print(f"  Raw disagreements:        {counts['disagree']:>6} ({100*counts['disagree']/total:.1f}%)")
     print(f"  Asymmetric (one has, other doesn't): {counts['asymmetric']:>3}")
     print(f"  Total Opus cost: ${total_cost:.3f}")
+
+    # Oracle-weighted view: how many disagreements are real vs false alarms?
+    # A "false alarm" is one where Sonnet's value already passes oracle (i.e.
+    # the value literally appears in source text within the SKU's region) —
+    # the disagreement says nothing useful because we have source-text ground
+    # truth on Sonnet's side.
+    real_disagree = 0
+    false_alarm = 0
+    ORACLE_CONFIRMED_SOURCES = {
+        "vlm+oracle_confirmed",
+        "oracle_verified",
+        "oracle_verified_relaxed",
+    }
+    for conf in ext.confidence:
+        for field, score in (conf.judge_agreement or {}).items():
+            if not (0.0 < score < 1.0):
+                continue  # only count real disagreements (not asymmetric)
+            sonnet_source = conf.per_field_source.get(field, "")
+            if sonnet_source in ORACLE_CONFIRMED_SOURCES:
+                false_alarm += 1
+            else:
+                real_disagree += 1
+    print(f"\n  Oracle-weighted view of disagreements:")
+    print(f"    False alarm (oracle confirms Sonnet, Opus drifted): {false_alarm}")
+    print(f"    REAL disagreement (no source-text ground truth):    {real_disagree}")
+    print(f"  -> {real_disagree} cells genuinely warrant buyer review")
 
     # Per-field agreement breakdown
     print(f"\n  Per-field agreement:")
