@@ -212,17 +212,22 @@ def run_pipeline(
     # want vocab to grow.
     if auto_enrich:
         try:
-            from buysheet_v2.tools.enrich_description_map import enrich as _enrich
+            from buysheet_v2.tools.enrich_description_map import enrich as _enrich_desc
+            from buysheet_v2.tools.enrich_color_synonyms import enrich as _enrich_colors
             import buysheet_v2.verify as _vmod
             if verbose:
-                print(f"[pipeline] auto-enriching description vocab for novel SKUs...")
-            _emit("enrich", 0.96, "Enriching vocab for any novel descriptions")
-            # Write current extraction to a temp sidecar so enrich can read it
+                print(f"[pipeline] auto-enriching description + color vocab for novel tokens...")
+            _emit("enrich", 0.96, "Enriching vocab for any novel descriptions + colors")
+            # Write current extraction to a temp sidecar so the enrich tools
+            # can read it. Same path the bot would persist to — safe to write
+            # over since both tools only read it.
             tmp_sidecar = pdf_path.with_suffix("").with_name(f"{pdf_path.stem}.v2.cards.json")
             tmp_sidecar.write_text(result.model_dump_json(indent=2, exclude_none=False))
-            _enrich([tmp_sidecar])
-            # Invalidate cached vocab so verify picks up the enriched map
+            _enrich_desc([tmp_sidecar])
+            _enrich_colors([tmp_sidecar])
+            # Invalidate cached vocab so verify picks up the enriched maps
             _vmod._DESCRIPTION_MAP = None
+            _vmod._COLOR_SYNONYMS = None
         except Exception as e:
             if verbose:
                 print(f"[pipeline] vocab enrichment skipped: {type(e).__name__}: {e}")
