@@ -155,6 +155,7 @@ def _backfill_intro_date(region: str) -> Optional[str]:
 
 def deterministic_fill(
     cards: list[ProductCard], page_text_by: dict[int, str],
+    *, catalog_brand: Optional[str] = None,
 ) -> dict[str, int]:
     """Backfill structured fields the VLM left None, using source-text regex.
 
@@ -162,10 +163,21 @@ def deterministic_fill(
     boundary logic the oracle uses) and applies a deterministic regex. Only
     fills when the regex match is unambiguous; never overwrites a non-None
     VLM value. Counts per-field fills returned for caller logging.
+
+    Backfills four classes of field:
+      - usd_cost / intro_date: regex over the SKU's source-text region
+        (Hoka 1168973-BBLC and Nike P-6000 IX7928-002 class — VLM skipped
+        the field on dense pages but the data is plainly in source)
+      - brand: when VLM left None and the catalog has a single dominant
+        brand, fill from the catalog-level signal (Nike PPTX where 80%
+        of cards had brand=None)
+      - standard_color: when VLM left None but card.color is set, run the
+        same vocab lookup the oracle uses for verification (Adidas where
+        82 cards had a color but no derived canonical)
     """
     # Import locally to avoid pulling verify at module-import time (the
     # oracle has its own slow imports we don't want eager).
-    from buysheet_v2.verify import card_text_region
+    from buysheet_v2.verify import _lookup_standard_color, card_text_region
 
     skus_by_page: dict[int, list[str]] = defaultdict(list)
     for c in cards:
@@ -174,22 +186,59 @@ def deterministic_fill(
     counts: dict[str, int] = defaultdict(int)
     for card in cards:
         page_text = page_text_by.get(card.page) or ""
-        if not page_text:
-            continue
-        region = card_text_region(page_text, card.sku, skus_by_page[card.page])
-        if region is None:
-            continue
-        if card.usd_cost is None:
-            v = _backfill_usd_cost(region)
-            if v is not None:
-                card.usd_cost = v
-                counts["usd_cost"] += 1
-        if card.intro_date is None:
-            v = _backfill_intro_date(region)
-            if v is not None:
-                card.intro_date = v
-                counts["intro_date"] += 1
+        region = None
+        if page_text:
+            region = card_text_region(page_text, card.sku, skus_by_page[card.page])
+
+        # Source-text regex fills
+        if region is not None:
+            if card.usd_cost is None:
+                v = _backfill_usd_cost(region)
+                if v is not None:
+                    card.usd_cost = v
+                    counts["usd_cost"] += 1
+            if card.intro_date is None:
+                v = _backfill_intro_date(region)
+                if v is not None:
+                    card.intro_date = v
+                    counts["intro_date"] += 1
+
+        # Brand backfill — fires regardless of region availability since the
+        # catalog-level signal doesn't depend on per-card text.
+        if card.brand is None and catalog_brand is not None:
+            card.brand = catalog_brand
+            counts["brand"] += 1
+
+        # standard_color backfill via vocab lookup. Cheap and high-precision:
+        # the same lookup the oracle uses, just applied as a fill rather than
+        # only as a check.
+        if card.standard_color is None and card.color:
+            mapped = _lookup_standard_color(card.color)
+            if mapped is not None and mapped != "IGNORE":
+                card.standard_color = mapped
+                counts["standard_color"] += 1
+
     return dict(counts)
+
+
+def detect_catalog_brand(cards: list[ProductCard]) -> Optional[str]:
+    """If 70%+ of cards share the same brand, return it (case-preserved).
+
+    Used by deterministic_fill so the brand backfill applies the canonical
+    display form for the catalog (Nike, not nike) when VLM-extracted cards
+    use mixed casing. Returns None for multi-brand or all-blank catalogs.
+    """
+    brands = [c.brand.strip() for c in cards if c.brand and c.brand.strip()]
+    if not brands:
+        return None
+    counter = Counter(b.lower() for b in brands)
+    dominant_lower, count = counter.most_common(1)[0]
+    if count < 0.7 * len(brands):
+        return None
+    for b in brands:
+        if b.lower() == dominant_lower:
+            return b  # first canonical-casing occurrence
+    return None
 
 
 def detect_duplicates(cards: list[ProductCard]) -> list[tuple[str, list[int]]]:

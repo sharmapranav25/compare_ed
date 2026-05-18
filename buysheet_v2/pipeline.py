@@ -245,8 +245,14 @@ def run_pipeline(
     # provably in source for each missing SKU; we just re-apply the same
     # regex the oracle uses for verification but as an EXTRACTION fallback.
     # Only fires on None values — never overwrites a real VLM extraction.
+    # Also fills None brand with the catalog-level brand and derives missing
+    # standard_color from card.color via the vocab synonym map.
+    from buysheet_v2.consistency import detect_catalog_brand
     page_text_by = {p.page: (p.page_text or "") for p in result.pages}
-    fill_counts = deterministic_fill(result.all_cards, page_text_by)
+    fill_counts = deterministic_fill(
+        result.all_cards, page_text_by,
+        catalog_brand=detect_catalog_brand(result.all_cards),
+    )
     if verbose and fill_counts:
         print(f"[pipeline] deterministic backfill: {fill_counts}")
 
