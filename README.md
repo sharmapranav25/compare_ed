@@ -101,7 +101,9 @@ Converse is the harder vendor because 7 of 17 pages are image-only
 PPT-exported pages (no text layer); the semantic oracle can't verify those
 values against source text, so they're left as VLM-only confidence.
 
-Full breakdown in [ARCHITECTURE.md](ARCHITECTURE.md).
+Full per-field breakdown and per-catalog-type confidence tiers in
+[ACCURACY_EXPECTATIONS.md](ACCURACY_EXPECTATIONS.md). Detailed pipeline
+walkthrough in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Cost
 
