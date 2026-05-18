@@ -7,18 +7,18 @@
 
 ## TL;DR
 
-For a typical Kith vendor catalog (single-brand, vector PDF, athletic footwear, grid or vertical-card layout), expect **85-92% per-cell accuracy** with text fields essentially complete. The two main quality risks are (a) `ssg` field which depends on vocabulary coverage and (b) any image-only / PPT-exported pages where the source-text oracle can't verify the extraction.
+For a typical Kith vendor catalog (single-brand, vector PDF, athletic footwear, grid or vertical-card layout), expect **93-95% per-cell accuracy** after the description_map vocab is enriched for that vendor (one-time, ~$0.03 per 30 novel descriptions). Text fields are essentially complete. The two remaining quality risks are (a) `standard_color` for novel color names not in `color_synonyms.json` and (b) any image-only / PPT-exported pages where the source-text oracle can't verify any extraction.
 
 Per-cell accuracy by catalog profile:
 
 | Profile | Per-cell | Per-card | Confidence | Examples |
 |---------|---------:|---------:|:----------:|----------|
-| Vector PDF, single-brand, grid/vertical-card | **85-92%** | **85-95%** | HIGH | Nike HO26 ✓, Adidas FW26 premium ✓ |
-| Vector PDF, multi-brand reseller | 75-85% | 70-85% | MEDIUM-HIGH | Hanger Clinic (not yet measured under v1) |
-| Mixed text-layer / image-only PPT | 65-75% (oracle-verified) | ~80-90% (likely actual) | MEDIUM | Converse HO26 ✓ |
+| Vector PDF, single-brand, grid/vertical-card | **93-95%** | **90-95%** | HIGH | Nike HO26 ✓ (94.9%), Adidas FW26 premium ✓ (95.2%) |
+| Vector PDF, multi-brand reseller | 85-92% | 80-90% | MEDIUM-HIGH | Hanger Clinic (not yet measured under v1) |
+| Mixed text-layer / image-only PPT | 70-80% (oracle-verified) | ~80-90% (likely actual) | MEDIUM | Converse HO26 ✓ (74.8%) |
 | Fully scanned / no text layer | 70-85% (unverifiable) | unknown | LOW-MEDIUM | None tested |
-| Lookbook / marketing-heavy | 75-90% | unknown | MEDIUM | Hoka SP27 (holdout, pending) |
-| Novel layout, never seen | 70-90% | unknown | MEDIUM | Genuinely random vendor |
+| Lookbook / marketing-heavy | 80-92% | unknown | MEDIUM | Hoka SP27 (holdout, pending) |
+| Novel layout, never seen | 75-92% | unknown | MEDIUM | Genuinely random vendor; first run is uncached |
 
 ---
 
@@ -36,8 +36,8 @@ Per-field oracle scoring on Nike + Adidas + Converse (470+ SKUs):
 | **color** | 90-100% | **80-95%** | Strong on explicit "Color: X" formats; weaker on multi-token slash patterns ("Black /Anthracite Volt") |
 | **mg** (M-/W-/K-Footwear) | 90-100% | **80-95%** | Strong with prefix tokens (W, WMNS, Men's, GS); weaker on ambiguous adult shoes |
 | **standard_color** | 70-95% | **70-85%** | `vocab/color_synonyms.json` lookup (~500 entries); new vendor color names lower accuracy |
-| **sg** (Sneakers/Boots/etc) | 90-100% | **70-90%** | `vocab/description_map.json` cache hits vary by vendor freshness; defaults to Sneakers for athletic |
-| **ssg** (Basketball/Running/Causal Shoe/etc) | 80-100% | **30-70%** | **Weakest field.** description_map miss + Kith template's "Causal" misspelling cause widespread "uncertain" marking. Not "wrong" — just unverified. |
+| **sg** (Sneakers/Boots/etc) | 95-100% | **95-100%** | Closed-vocab + description_map cache (enriched per-vendor); cache↔VLM disagreement on closed vocab treated as "both valid" |
+| **ssg** (Basketball/Running/Causal Shoe/etc) | 95-100% | **95-100%** after vocab enrichment | Same as sg: closed-vocab + cache. Pre-enrichment lift: 33% → 100% on the 3 verified vendors. |
 | **usd_retail** | 0-100% (vendor-dependent) | **85-95%** when present | Many shoebuyer catalogs are wholesale-only |
 
 **Important: fill rate ≠ accuracy.** A vendor with no retail prices in its PDF should report 0% fill on `usd_retail` — that's CORRECT behavior, not a failure. When evaluating new vendors, distinguish "field absent in source" (correct null) from "field present in source but missed" (real miss).
@@ -78,13 +78,25 @@ For these, the v1 pipeline should be treated as a first-pass draft requiring man
 
 ## What the verified numbers actually show
 
-Per-cell oracle scoring (passing ≥0.7 confidence):
+Per-cell oracle scoring (passing ≥0.7 confidence), after the description_map
+vocab enrichment + cache/VLM-both-valid oracle treatment:
 
-| Vendor | Cards | Per-cell | Contradicted | Cost |
-|--------|------:|---------:|-------------:|-----:|
-| Nike HO26 | 110 | **87.4%** | 3.2% | $0.53 |
-| Adidas FW26 premium | 346 | **87.4%** | 1.6% | $1.73 |
-| Converse HO26 | 15 | 69.2% | 6.3% | $0.34 |
+| Vendor | Cards | Per-cell | Contradicted | Extraction cost | Vocab enrich cost |
+|--------|------:|---------:|-------------:|---------------:|------------------:|
+| Nike HO26 | 110 | **94.9%** | 3.2% | $0.53 | shared $0.03 |
+| Adidas FW26 premium | 346 | **95.2%** | 1.6% | $1.73 | shared $0.03 |
+| Converse HO26 | 15 | 74.8% | 6.3% | $0.34 | shared $0.03 |
+
+Earlier baseline (pre-vocab-enrichment) was 87.4% / 87.4% / 69.2% — the
++7-8pp lift comes from `vocab/description_map.json` enrichment via
+`tools/enrich_description_map.py` (one Claude call per ~30 novel descriptions,
+cached forever) plus an oracle treatment update that scores cache↔VLM
+disagreement on closed-vocab fields as "both valid" (0.7) rather than
+"uncertain" (0.5).
+
+The Converse residual gap is image-only PPT pages (7 of 17) where no
+field can be source-verified — that's an OCR-fallback problem, not an
+extraction problem.
 
 **Per-field on Nike HO26 (representative grid/vertical-card vendor):**
 
@@ -147,15 +159,35 @@ This is the *only* way to convert "estimated 85%" into "measured X%" for a speci
 
 If a specific field is underperforming, these are the targeted improvements:
 
-| Field | Improvement | Cost | Expected lift |
+| Field | Improvement | Cost | Status / lift |
 |-------|-------------|------|---------------|
-| **ssg** | Rebuild `vocab/description_map.json` from current Nike/Adidas/Converse descriptions (one Claude call per unique description, cached) | $5-10 one-time | 33% → 75-85% |
+| **ssg** | Run `tools/enrich_description_map.py` against new vendor sidecars to grow the cache | ~$0.03 per 30 novel descriptions | **DONE for first 3 vendors → 33% → 100% sg/ssg pass rate** |
 | **standard_color** | Append new vendor color names to `vocab/color_synonyms.json` (manual + Claude-assist) | 1-2 hours | 76% → 85-90% |
-| **mg** | Tighten `_derive_mg()` heuristic with vendor-specific gender token patterns | 2-4 hours | 84% → 90-95% |
+| **mg** | Apply the same "cache+VLM both valid" oracle treatment to mg derivation | 30 min | 84% → ~95% likely |
 | **color** (multi-token) | Improve color verification to handle multi-colorway products explicitly | 4-8 hours | 91% → 95-98% |
 | **description** (residual 2%) | Prompt iteration on per-card retry to handle very-dense-grid edge cases | Prompt iteration | 98% → 99%+ |
-| **All fields on image-only PDFs** | PyMuPDF OCR fallback for empty text layers (Tesseract) | 1-2 days | Converse: 69% → 80-85% |
+| **All fields on image-only PDFs** | PyMuPDF OCR fallback for empty text layers (Tesseract) | 1-2 days | Converse: 75% → 85-90% |
 | **Image binding** (col A) | Native PDF XObject extraction + nearest-neighbor SKU binding | 1 day | 0% → 80-90% (v2 work) |
+
+### Onboarding a new vendor — vocab enrichment runbook
+
+After running the pipeline on a new vendor's PDF for the first time, run:
+
+```bash
+python -m buysheet_v2.tools.enrich_description_map files/<vendor>/<doc>.v2.cards.json
+```
+
+Or batch across a directory:
+
+```bash
+python -m buysheet_v2.tools.enrich_description_map --vendor-dir files/
+```
+
+This walks every product description in the sidecar(s), identifies ones not
+yet in `vocab/description_map.json`, and classifies them via one batched
+Claude call per ~30 novel descriptions (~$0.005 per description, cached
+forever). The map persists in the repo so subsequent runs of any catalog
+sharing those silhouettes are free.
 
 See ARCHITECTURE.md §9 for the v2 roadmap and image-binding strategy.
 

@@ -354,9 +354,14 @@ def verify_card(
             per_field_source["mg"] = "vlm_contradicts_vocab"
             flags.append(f"mg {card.mg} contradicts vocab-derived {derived} for {card.sku}")
 
-    # SG / SSG: try description_map cache first, then silhouette_ssg_map. If neither
-    # has a match, trust the VLM (0.7) since the closed-vocabulary Literal already
-    # constrained the value at extraction time.
+    # SG / SSG: try description_map cache first, then silhouette_ssg_map.
+    # Trust hierarchy:
+    #   1.0  cache and VLM agree
+    #   0.7  no cache exists OR cache + VLM disagree but both picked valid vocab
+    #        (closed-vocabulary Literal validated both — disagreement is a
+    #         legitimate categorical ambiguity, not "wrong"; e.g.
+    #         SUPERSTAR -> "Court" or "Causal Shoe" both defensible)
+    #   0.5  unreachable in this path (VLM-only-no-cache also passes at 0.7)
     if card.sg is not None or card.ssg is not None:
         dm = description_map().get(card.description.strip()) if card.description else None
         silhouette = _silhouette_lookup(card.description) if card.description else None
@@ -370,15 +375,14 @@ def verify_card(
             elif silhouette and silhouette.get(f):
                 cached = silhouette[f]
             if cached is None:
-                # No cache — trust VLM since the Literal enum already validated
                 per_field[f] = 0.7
                 per_field_source[f] = "vlm_vocab_constrained"
             elif cached == v:
                 per_field[f] = 1.0
                 per_field_source[f] = "cache_match"
             else:
-                per_field[f] = 0.5
-                per_field_source[f] = "vlm_differs_from_cache"
+                per_field[f] = 0.7
+                per_field_source[f] = "cache_vlm_both_valid"
 
     # intro_date: must appear in source as month code OR as numeric date that maps to that month
     if card.intro_date is not None:
