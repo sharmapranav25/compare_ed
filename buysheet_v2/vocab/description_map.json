@@ -309,6 +309,11 @@
     "sg": "Sneakers",
     "ssg": "Basketball"
   },
+  "ATHLETIC SLIDE 2": {
+    "confidence": "high",
+    "sg": "Sandals",
+    "ssg": "Slip On"
+  },
   "Acapulco": {
     "confidence": "low",
     "sg": "Sneakers",
@@ -1469,6 +1474,11 @@
     "sg": "Sneakers",
     "ssg": "Miscellaneous"
   },
+  "ORA PRIMO": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe"
+  },
   "ORA PRIMO EXT": {
     "confidence": "medium",
     "sg": "Sneakers",
@@ -1922,6 +1932,11 @@
   "Utility Shoe": {
     "confidence": "medium",
     "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "VARSITY NA": {
+    "confidence": "low",
+    "sg": "Sneakers",
     "ssg": "Causal Shoe"
   },
   "Vigor Hiking Boot": {

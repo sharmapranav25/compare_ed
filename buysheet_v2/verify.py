@@ -167,12 +167,37 @@ def card_text_region(
 
 # --- per-field verifiers -----------------------------------------------------
 
+_DOUBLE_LETTER_RE = re.compile(r"([a-z])\1+")
+
+
+def _collapse_doubles(s: str) -> str:
+    """Collapse runs of repeated ASCII letters down to a single letter.
+
+    PyMuPDF's text extraction occasionally inserts phantom-duplicated letters
+    on certain PDF font encodings (Adidas FW26 catalog: `RUNWHT` rendered as
+    `RUUNWHT`, `wonder` as `wondder`, `quiet` as `quieet`). The model reads
+    the visually-rendered glyphs (clean) so its extracted value mismatches
+    the duplicated source-text version, even though the buyer's eye sees them
+    as the same string. Collapsing doubles on the source-text side recovers
+    the match without weakening the per-card region or accepting genuinely
+    wrong values: the needle is left unchanged, so any color that's actually
+    different will still fail.
+    """
+    return _DOUBLE_LETTER_RE.sub(r"\1", s)
+
+
 def _value_in_region(value, region: str) -> bool:
     if value is None or region is None:
         return False
     needle = _normalize_for_match(str(value))
     haystack = _normalize_for_match(region)
-    return needle in haystack
+    if needle in haystack:
+        return True
+    # Fallback: try the doubled-letter-collapsed haystack to absorb PDF text
+    # extraction artifacts. Needle stays as-is so this only helps when the
+    # source text has phantom-duplicated letters, not when the value itself
+    # differs from source.
+    return needle in _collapse_doubles(haystack)
 
 
 def _numeric_in_region(value, region: str) -> bool:

@@ -1,16 +1,16 @@
 {
   "_meta": {
     "git_head": "c2de76d",
-    "last_updated": "2026-05-18T15:48:39.000876+00:00"
+    "last_updated": "2026-05-18T16:23:30.636778+00:00"
   },
   "vendors": {
     "adidas_premium": {
       "cards": 346,
-      "cards_contradicted": 50,
-      "cards_partial": 57,
-      "cards_perfect": 239,
-      "contradicted_pct": 2.03,
-      "per_cell_pct": 94.74,
+      "cards_contradicted": 46,
+      "cards_partial": 55,
+      "cards_perfect": 245,
+      "contradicted_pct": 1.88,
+      "per_cell_pct": 94.98,
       "per_field": {
         "brand": {
           "contradicted": 0,
@@ -19,9 +19,9 @@
           "total": 346
         },
         "color": {
-          "contradicted": 39,
-          "correct": 296,
-          "rate_pct": 85.5,
+          "contradicted": 36,
+          "correct": 299,
+          "rate_pct": 86.4,
           "total": 346
         },
         "description": {
@@ -61,9 +61,9 @@
           "total": 346
         },
         "standard_color": {
-          "contradicted": 4,
-          "correct": 223,
-          "rate_pct": 76.9,
+          "contradicted": 2,
+          "correct": 228,
+          "rate_pct": 78.6,
           "total": 290
         },
         "usd_cost": {
