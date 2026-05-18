@@ -66,12 +66,45 @@ def normalize_kids_default(card: ProductCard) -> bool:
     return True
 
 
+def default_mg_from_sg(card: ProductCard) -> bool:
+    """When card.mg is None but SG strongly implies a gender, fill it.
+
+    Conservative rule — only fills when SG is unambiguous in Kith convention:
+      SG=Sneakers -> M-Footwear (athletic-adult default; Running, Causal Shoe,
+        Court, Basketball, etc. all live under Sneakers and are M-default
+        unless the description explicitly says WMNS/WOMEN/KIDS — which would
+        already have set mg upstream)
+      SG=Heels   -> W-Footwear (Kith template's Heels SG is the women's
+        fashion bucket)
+
+    Everything else (Boots, Sandals, Slippers, Shoes, Miscellaneous) is left
+    None because the SG alone doesn't safely identify a gender — the buyer
+    sees a blank cell with an amber comment instead of a wrong default.
+    """
+    if card.mg is not None:
+        return False
+    if card.sg == "Sneakers":
+        # Final safety: if there's a kids token in the description, the
+        # upstream extract would have set mg=K. None here means no kids
+        # signal -> safe to default adult-M.
+        if card.description and _KIDS_DESC_PATTERN.search(card.description):
+            return False
+        card.mg = "M-Footwear"
+        return True
+    if card.sg == "Heels":
+        card.mg = "W-Footwear"
+        return True
+    return False
+
+
 def normalize_extraction(cards: list[ProductCard]) -> dict[str, int]:
     """Apply all card-level normalizations in place. Returns counts per fix."""
     counts: dict[str, int] = defaultdict(int)
     for c in cards:
         if normalize_kids_default(c):
             counts["k_footwear_to_m"] += 1
+        if default_mg_from_sg(c):
+            counts["mg_default_from_sg"] += 1
     return dict(counts)
 
 
