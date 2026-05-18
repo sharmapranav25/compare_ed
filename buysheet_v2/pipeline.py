@@ -232,6 +232,15 @@ def run_pipeline(
             if verbose:
                 print(f"[pipeline] vocab enrichment skipped: {type(e).__name__}: {e}")
 
+    # Apply card-level normalizations before scoring (e.g. demote VLM's
+    # K-Footwear guesses to M-Footwear when there's no kids evidence in the
+    # description or SKU). Mutates cards in place so the oracle sees the
+    # corrected values and the xlsx writes the corrected defaults.
+    from buysheet_v2.consistency import normalize_extraction
+    fix_counts = normalize_extraction(result.all_cards)
+    if verbose and fix_counts:
+        print(f"[pipeline] card normalizations: {fix_counts}")
+
     # Run the semantic oracle (no API cost — pure source-text verification)
     if verbose:
         print(f"[pipeline] running semantic oracle...")

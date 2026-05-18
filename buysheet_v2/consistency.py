@@ -14,10 +14,65 @@ no API calls.
 """
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from typing import Optional
 
 from buysheet_v2.schemas.card import ProductCard
+
+# Tokens that signal a kids product when present in the description (word-boundary
+# matched to avoid spurious substrings like "JR" inside "AJREN"). Adult-default
+# Kith convention treats anything without one of these as M-Footwear unless the
+# VLM explicitly saw women's signal (WMNS / WOMEN's etc — handled by _derive_mg).
+_KIDS_DESC_PATTERN = re.compile(
+    r"\b(GS|PS|TD|YOUTH|KIDS?|JR|JUNIOR|BABY|INFANT|TODDLER|CHILD|CHILDREN|"
+    r"BOYS?|GIRLS?|YTH)\b",
+    flags=re.IGNORECASE,
+)
+# SKU-side kids markers — vendor-specific suffixes (e.g. Adidas "-K") and
+# common patterns. Conservative: word-boundary matched, only triggers when the
+# token appears as a discrete segment of the SKU.
+_KIDS_SKU_PATTERN = re.compile(
+    r"(?:^|[-_/ ])(K|YTH|JR|GS|PS|TD|JNR)(?:$|[-_/ ])",
+    flags=re.IGNORECASE,
+)
+
+
+def normalize_kids_default(card: ProductCard) -> bool:
+    """If model picked K-Footwear without a kids signal, override to M-Footwear.
+
+    Returns True if the card was changed (caller may want to log it).
+
+    The VLM occasionally defaults to K-Footwear on dense pages when there's no
+    explicit gender cue (e.g. Adidas KI2263 PREDATOR SALA EDIT — a Predator
+    Sala futsal shoe with no WMNS/MEN/KIDS token in the catalog text). Kith
+    convention defaults adult athletic footwear to M-Footwear; K-Footwear
+    should require explicit evidence — either a kids token in the description
+    or a kids-coded SKU segment.
+
+    Conservative: only flips K-Footwear, never touches M/W. Safe to run before
+    verify_catalog because we only ever upgrade specificity (the resulting
+    `_derive_mg` call still returns None on a description with no gender token,
+    so the cell still scores `vlm_vocab_constrained_no_signal` at amber 0.7 —
+    the user sees a sensible default and a review prompt).
+    """
+    if card.mg != "K-Footwear":
+        return False
+    if card.description and _KIDS_DESC_PATTERN.search(card.description):
+        return False  # genuine kids signal in description
+    if _KIDS_SKU_PATTERN.search(card.sku):
+        return False  # SKU is explicitly kids-coded
+    card.mg = "M-Footwear"
+    return True
+
+
+def normalize_extraction(cards: list[ProductCard]) -> dict[str, int]:
+    """Apply all card-level normalizations in place. Returns counts per fix."""
+    counts: dict[str, int] = defaultdict(int)
+    for c in cards:
+        if normalize_kids_default(c):
+            counts["k_footwear_to_m"] += 1
+    return dict(counts)
 
 
 def detect_duplicates(cards: list[ProductCard]) -> list[tuple[str, list[int]]]:

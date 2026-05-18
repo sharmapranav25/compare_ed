@@ -426,7 +426,13 @@ def verify_card(
     # single-brand catalogs the brand is implicit and not repeated per card.
     if card.brand is not None:
         if catalog_brand is not None and catalog_brand.lower() == card.brand.lower():
-            per_field["brand"] = 0.7
+            # Single-brand catalogs (Nike, Adidas, Hoka) name the brand once
+            # in the page/cover header and never again. Voting against catalog-
+            # level brand requires the model to invent a different brand for
+            # one card in a 300-card single-brand catalog — vanishingly rare.
+            # Score above LOW_CONFIDENCE_THRESHOLD so these don't amber-flag
+            # the entire xlsx; the catalog-level signal is effectively bulletproof.
+            per_field["brand"] = 0.95
             per_field_source["brand"] = "catalog_level_implicit"
         elif region is None:
             per_field["brand"] = 0.5
