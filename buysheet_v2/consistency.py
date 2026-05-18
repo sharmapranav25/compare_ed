@@ -75,6 +75,123 @@ def normalize_extraction(cards: list[ProductCard]) -> dict[str, int]:
     return dict(counts)
 
 
+# --- Deterministic source-text backfill --------------------------------------
+#
+# The VLM occasionally skips fields for some siblings in a dense repeating
+# section (Hoka 1168973-BBLC's $170 and 01/01 are right there in the source
+# but the model only extracted them for the next sibling, -CWBT). Since the
+# data is unambiguously in source, we can backfill the missing values via the
+# same regex patterns the semantic oracle uses for verification. This is
+# strictly an upgrade-when-VLM-was-None operation; existing extracted values
+# are never overwritten.
+
+_NUMERIC_MONTH_TO_CODE = {
+    "01": "JAN", "1": "JAN", "02": "FEB", "2": "FEB",
+    "03": "MAR", "3": "MAR", "04": "APR", "4": "APR",
+    "05": "MAY", "5": "MAY", "06": "JUN", "6": "JUN",
+    "07": "JUL", "7": "JUL", "08": "AUG", "8": "AUG",
+    "09": "SEP", "9": "SEP", "10": "OCT", "11": "NOV", "12": "DEC",
+}
+_PRICE_RE = re.compile(r"\$\s*(\d{1,4}(?:\.\d{1,2})?)")
+_DATE_MMDDYYYY = re.compile(r"\b(\d{1,2})/(\d{1,2})/\d{2,4}\b")
+_DATE_MMYYYY = re.compile(r"\b(\d{1,2})/(20\d{2})\b")
+# Bare MM/DD that is NOT inside a size-range list. Negative lookahead blocks
+# `MM/DD-...`, `MM/DD/...`, and `MM/DD, MM/DD` (the size patterns Hoka uses
+# like `03/05-14/16, 13/14, 14/15`). Real intro dates like `01/01 (Core)` and
+# `01/15 NEW` have non-digit/non-separator characters immediately after, so
+# the lookahead lets them through.
+_DATE_MMDD = re.compile(r"\b(\d{1,2})/(\d{1,2})\b(?!\s*[-/,]?\s*\d)")
+_DATE_FULL_NAMES = {
+    "JANUARY": "JAN", "FEBRUARY": "FEB", "MARCH": "MAR", "APRIL": "APR",
+    "MAY": "MAY", "JUNE": "JUN", "JULY": "JUL", "AUGUST": "AUG",
+    "SEPTEMBER": "SEP", "OCTOBER": "OCT", "NOVEMBER": "NOV", "DECEMBER": "DEC",
+}
+
+
+def _backfill_usd_cost(region: str) -> Optional[float]:
+    """Return the first `$N` price token in the region, parsed as float."""
+    m = _PRICE_RE.search(region)
+    if not m:
+        return None
+    try:
+        return float(m.group(1))
+    except ValueError:
+        return None
+
+
+def _backfill_intro_date(region: str) -> Optional[str]:
+    """Return a month-resolvable date token from the region as a MONTH code.
+
+    For bare MM/DD patterns (Hoka-style lookbook), the date appears AFTER size
+    ranges in the row (`... 05/06-12/13, 13/14, 14/15 M/W $170 ... 01/01 (Core)`).
+    Picking the first MM/DD match would grab the size range's leading pair
+    (05/06 → MAY) instead of the intro date (01/01 → JAN), so we take the LAST
+    MM/DD match instead. MMDDYYYY catches Nike-style fully-qualified dates
+    before we get to the bare-MMDD fallback, so this never overrides them.
+    """
+    for m in _DATE_MMDDYYYY.finditer(region):
+        code = _NUMERIC_MONTH_TO_CODE.get(m.group(1))
+        if code:
+            return code
+    for m in _DATE_MMYYYY.finditer(region):
+        code = _NUMERIC_MONTH_TO_CODE.get(m.group(1))
+        if code:
+            return code
+    # Bare MM/DD: take the LAST valid date token (dates follow sizes in
+    # vendor catalog rows). Filter to plausible date components first.
+    bare_matches: list[str] = []
+    for m in _DATE_MMDD.finditer(region):
+        mm, dd = m.group(1), m.group(2)
+        if 1 <= int(mm) <= 12 and 1 <= int(dd) <= 31:
+            bare_matches.append(mm)
+    if bare_matches:
+        return _NUMERIC_MONTH_TO_CODE.get(bare_matches[-1])
+    upper = region.upper()
+    for full, abbr in _DATE_FULL_NAMES.items():
+        if full in upper:
+            return abbr
+    return None
+
+
+def deterministic_fill(
+    cards: list[ProductCard], page_text_by: dict[int, str],
+) -> dict[str, int]:
+    """Backfill structured fields the VLM left None, using source-text regex.
+
+    For each card with a None field, locates the card's text region (same
+    boundary logic the oracle uses) and applies a deterministic regex. Only
+    fills when the regex match is unambiguous; never overwrites a non-None
+    VLM value. Counts per-field fills returned for caller logging.
+    """
+    # Import locally to avoid pulling verify at module-import time (the
+    # oracle has its own slow imports we don't want eager).
+    from buysheet_v2.verify import card_text_region
+
+    skus_by_page: dict[int, list[str]] = defaultdict(list)
+    for c in cards:
+        skus_by_page[c.page].append(c.sku)
+
+    counts: dict[str, int] = defaultdict(int)
+    for card in cards:
+        page_text = page_text_by.get(card.page) or ""
+        if not page_text:
+            continue
+        region = card_text_region(page_text, card.sku, skus_by_page[card.page])
+        if region is None:
+            continue
+        if card.usd_cost is None:
+            v = _backfill_usd_cost(region)
+            if v is not None:
+                card.usd_cost = v
+                counts["usd_cost"] += 1
+        if card.intro_date is None:
+            v = _backfill_intro_date(region)
+            if v is not None:
+                card.intro_date = v
+                counts["intro_date"] += 1
+    return dict(counts)
+
+
 def detect_duplicates(cards: list[ProductCard]) -> list[tuple[str, list[int]]]:
     """Find SKUs that appear on multiple cards. Returns [(sku, [card_indices])]."""
     sku_to_indices: dict[str, list[int]] = defaultdict(list)
