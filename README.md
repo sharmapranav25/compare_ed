@@ -199,6 +199,34 @@ from buysheet_v2.pipeline import run_pipeline
 run_pipeline(pdf, auto_enrich=False)
 ```
 
+## Accuracy validation via VLM-as-judge (Opus reviews Sonnet)
+
+For independent verification of any extraction without re-running Sonnet,
+run the judge tool against a cached sidecar. It calls Opus 4.7 in parallel
+over the same PDF, compares per-card per-field values, and reports the
+agreement rate plus sample disagreements.
+
+```bash
+# Estimate cost first (free, no API calls)
+python -m buysheet_v2.tools.judge_existing --estimate path/to/<doc>.v2.cards.json
+
+# Run the judge (Opus is ~5x Sonnet cost; expect ~$0.20-0.25 per page)
+python -m buysheet_v2.tools.judge_existing path/to/<doc>.v2.cards.json
+
+# Write the judge_agreement scores back into the sidecar for downstream use
+python -m buysheet_v2.tools.judge_existing --update path/to/<doc>.v2.cards.json
+```
+
+Per-field disagreement counts surface real errors. On a Nike HO26 PPTX
+sample (9 pages, 110 cards, $1.24 in Opus cost), the smoke test caught a
+description-rotation mis-attribution between three adjacent SKUs that
+neither model would have flagged alone — exactly the cross-card mistake
+class the oracle is too lenient about.
+
+Judge can also run inside the main pipeline (`run_pipeline(pdf, run_judge=True)`)
+or by setting the bot to validate every upload. Off by default because
+of the Opus cost surcharge.
+
 ## Regression checking
 
 After ANY change to `verify.py`, `extract.py`, prompts, or vocab files,

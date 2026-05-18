@@ -34,6 +34,19 @@ class CardConfidence(BaseModel):
     )
     overall: float = Field(0.0, ge=0.0, le=1.0)
     flags: list[str] = Field(default_factory=list)
+    # VLM-as-judge: independent re-extraction by a second model (Opus 4.7
+    # by default) verifying Sonnet 4.6's per-card output. judge_agreement
+    # values: 1.0 = both models extracted the same value; 0.5 = both have
+    # values but they differ (write Sonnet's, note Opus's in the comment);
+    # 0.0 = one has a value and the other doesn't; key absent = field not
+    # judged this run (e.g. judge skipped or page errored).
+    judge_agreement: dict[str, float] = Field(default_factory=dict)
+    judge_values: dict[str, Optional[str]] = Field(
+        default_factory=dict,
+        description="Per-field Opus value (stringified) for cells where the "
+                    "two models disagreed — surfaced in cell comments so the "
+                    "buyer sees both candidates.",
+    )
 
 
 class CatalogExtraction(BaseModel):

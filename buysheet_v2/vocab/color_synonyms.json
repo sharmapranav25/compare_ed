@@ -1,4 +1,6 @@
 {
+  "'-'": "Multi",
+  "'{null}'": "Multi",
   "_comment": "Lowercase color token -> canonical color (must match Standard Color vocab in buysheet_vocab.json). Value 'IGNORE' means the token is junk (material codes, gender leaks, partial regex hits) and should be skipped, not counted toward Multi. Tokens not in this map fall back to Claude.",
   "acid orange": "Orange",
   "acorn": "Brown",

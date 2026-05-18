@@ -71,6 +71,7 @@ def run_pipeline(
     auto_enrich: bool = True,
     verbose: bool = True,
     progress_callback: Optional[ProgressCallback] = None,
+    run_judge: bool = False,
 ) -> CatalogExtraction:
     """Run the full VLM-first pipeline on a PDF and return a CatalogExtraction.
 
@@ -231,6 +232,58 @@ def run_pipeline(
         except Exception as e:
             if verbose:
                 print(f"[pipeline] vocab enrichment skipped: {type(e).__name__}: {e}")
+
+    # VLM-as-judge: independent re-extraction by Opus 4.7 for cross-model
+    # verification. Off by default because Opus is ~5x Sonnet cost; turn on
+    # via run_judge=True for validation runs or accuracy audits. Results are
+    # merged into each card's CardConfidence.judge_agreement, then write.py
+    # factors them into the tier classification (cells where both models
+    # agree get bumped to highest confidence; disagreements get amber with
+    # both candidates in the cell comment).
+    if run_judge:
+        from buysheet_v2.judge import judge_page, merge_judge_into_confidence
+        if verbose:
+            print(f"[pipeline] running VLM-as-judge (Opus 4.7, parallel re-extraction)...")
+        _emit("judge", 0.94, "Cross-checking extraction with Opus 4.7")
+        judge_by_page: dict[int, list] = {}
+        judge_cost = 0.0
+        for page in doc.pages:
+            page_extract = next(
+                (pe for pe in result.pages if pe.page == page.page_no), None,
+            )
+            if page_extract is None or not page_extract.cards:
+                continue
+            try:
+                jcards, jusage = judge_page(
+                    page, page_extract.cards, card_bboxes=[], client=client,
+                )
+                judge_by_page[page.page_no] = jcards
+                judge_cost += jusage.get("cost_usd", 0.0)
+                result.cost_usd += jusage.get("cost_usd", 0.0)
+                result.tokens_input += jusage.get("input_tokens", 0)
+                result.tokens_output += jusage.get("output_tokens", 0)
+                result.tokens_cache_read += jusage.get("cache_read_tokens", 0)
+            except Exception as e:
+                if verbose:
+                    print(f"  [judge] page {page.page_no} failed: "
+                          f"{type(e).__name__}: {e}")
+        # Initialize confidence list if verify hasn't run yet (it hasn't)
+        if not result.confidence:
+            from buysheet_v2.schemas.extraction_result import CardConfidence
+            result.confidence = [
+                CardConfidence(sku=c.sku, page=c.page) for c in result.all_cards
+            ]
+        counts = merge_judge_into_confidence(
+            result.confidence, result.all_cards, judge_by_page,
+        )
+        if verbose:
+            ag = counts["agree"]
+            ds = counts["disagree"]
+            asym = counts["asymmetric"]
+            total = counts["total_compared"]
+            print(f"  -> judge cost ${judge_cost:.2f}  comparisons={total}  "
+                  f"agree={ag} ({100*ag/max(1,total):.1f}%)  "
+                  f"disagree={ds}  asymmetric={asym}")
 
     # Apply card-level normalizations before scoring (e.g. demote VLM's
     # K-Footwear guesses to M-Footwear when there's no kids evidence in the
