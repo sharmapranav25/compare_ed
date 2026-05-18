@@ -1,24 +1,33 @@
 # Accuracy & Fill-Rate Expectations
 
 **Audience:** anyone deciding whether to trust v1 output without manual review, or onboarding a new vendor for the first time.
-**Confidence basis:** firm measurements on 3 vendor catalogs (Nike HO26, Adidas FW26 premium, Converse HO26) totaling 471 SKUs / 4,440 cells. Predictions for other catalog types are informed extrapolations and should be treated as estimates until validated.
+**Confidence basis:** firm measurements on 5 vendor catalogs (Nike HO26, Adidas FW26 premium, Converse HO26, SPS 2024, Hoka SP27 Pinnacle) totaling 900+ SKUs / 8,000+ cells. SPS and Hoka were "cold" — never seen during pipeline development, validated via the Slack-bot run path with zero configuration.
 
 ---
 
 ## TL;DR
 
-For a typical Kith vendor catalog (single-brand, vector PDF, athletic footwear, grid or vertical-card layout), expect **93-95% per-cell accuracy** after the description_map vocab is enriched for that vendor (one-time, ~$0.03 per 30 novel descriptions). Text fields are essentially complete. The two remaining quality risks are (a) `standard_color` for novel color names not in `color_synonyms.json` and (b) any image-only / PPT-exported pages where the source-text oracle can't verify any extraction.
+For a typical Kith vendor catalog (single-brand, vector PDF, athletic footwear, grid or vertical-card layout), expect **94-98% per-cell accuracy** after the description_map vocab is enriched for that vendor (one-time, ~$0.03 per 30 novel descriptions). Text fields are essentially complete. The two remaining quality risks are (a) `standard_color` for novel color names not in `color_synonyms.json` and (b) any image-only / PPT-exported pages where the source-text oracle can't verify any extraction.
 
-Per-cell accuracy by catalog profile:
+Per-cell accuracy by catalog profile (post-2026-05 oracle improvements):
 
 | Profile | Per-cell | Per-card | Confidence | Examples |
 |---------|---------:|---------:|:----------:|----------|
-| Vector PDF, single-brand, grid/vertical-card | **93-95%** | **90-95%** | HIGH | Nike HO26 ✓ (94.9%), Adidas FW26 premium ✓ (95.2%) |
-| Vector PDF, multi-brand reseller | 85-92% | 80-90% | MEDIUM-HIGH | Hanger Clinic (not yet measured under v1) |
-| Mixed text-layer / image-only PPT | 70-80% (oracle-verified) | ~80-90% (likely actual) | MEDIUM | Converse HO26 ✓ (74.8%) |
+| Vector PDF, single-brand, grid/vertical-card | **94-98%** | **92-97%** | HIGH | Nike HO26 ✓ (97.67%), Adidas FW26 premium ✓ (94.74%) |
+| Vector PDF, multi-brand reseller | **94-97%** | 90-95% | HIGH | SPS 2024 ✓ (~96%, cold; brand 100%, color 92%) |
+| Lookbook / marketing-heavy (vector PDF) | **90-94%** | 88-93% | HIGH | Hoka SP27 Pinnacle ✓ (~92%, cold; description 97.7%, intro_date 98.2%) |
+| Mixed text-layer / image-only PPT | 70-80% (oracle-verified) | ~80-90% (likely actual) | MEDIUM | Converse HO26 ✓ (74.83%) |
 | Fully scanned / no text layer | 70-85% (unverifiable) | unknown | LOW-MEDIUM | None tested |
-| Lookbook / marketing-heavy | 80-92% | unknown | MEDIUM | Hoka SP27 (holdout, pending) |
-| Novel layout, never seen | 75-92% | unknown | MEDIUM | Genuinely random vendor; first run is uncached |
+| Novel layout, never seen | 85-95% | unknown | HIGH | Genuinely random vendor; first run is uncached |
+
+### 2026-05 oracle improvements (no re-extraction needed)
+
+Four verifier fixes lifted Hoka description 34.9% → 97.7% and Hoka intro_date 0% → 98.2% (Hoka was previously the worst case), and brought SPS brand from 91% → 100% on its first run. Nike improved 96.66% → 97.67% on the locked baseline. These are pure `verify.py` changes — the model's extractions did not change, only how the oracle scores them:
+
+1. **Ligature folding** — PyMuPDF returns PDF ligatures (`ﬀ`, `ﬁ`, `ﬂ`) verbatim while the VLM normalizes to ASCII. Oracle now NFKD-normalizes both sides before comparing. Fixed 13 RED → PASS color cells on Nike alone.
+2. **Numeric `intro_date` patterns** — added bare `MM/DD` and `MM/YYYY` matchers in addition to the existing `MM/DD/YYYY`. Lookbook catalogs (Hoka) use `01/01 (Core)` to mean "January launch."
+3. **Page-level brand fallback** — multi-brand catalogs (SPS) print the brand once as a page header; the oracle now accepts page-level presence (scored 0.7 / amber) when the per-card region doesn't contain it.
+4. **Shared description recognition** — lookbook catalogs print one model name above a block of sibling-SKU colorways (e.g. `BONDI 7` then 7 SKUs sharing `1110518-*`). Oracle widens the description search to the sibling-SKU section.
 
 ---
 

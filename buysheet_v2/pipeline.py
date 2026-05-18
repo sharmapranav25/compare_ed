@@ -20,9 +20,15 @@ Pricing constants — anthropic.com/pricing (Sonnet 4.6, Opus 4.7, May 2026):
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import anthropic
+
+# Progress callback signature: (phase_name, pct_0_to_1, human_message) -> None.
+# Phases emitted: "start", "ingest", "classify", "extract", "enrich",
+# "verify", "done". Total wall-clock weight is dominated by per-page extract
+# (~90%); classify/verify/enrich are quick.
+ProgressCallback = Callable[[str, float, str], None]
 
 from buysheet_v2.cards import detect_cards_on_page
 from buysheet_v2.classify import classify_layout
@@ -64,11 +70,16 @@ def run_pipeline(
     cache_sidecar: bool = True,
     auto_enrich: bool = True,
     verbose: bool = True,
+    progress_callback: Optional[ProgressCallback] = None,
 ) -> CatalogExtraction:
     """Run the full VLM-first pipeline on a PDF and return a CatalogExtraction.
 
     The result is also written to <pdf_stem>.cards.json next to the PDF
     (so re-runs can pick up cached cards before write.py).
+
+    progress_callback: optional hook invoked at key phases as
+    (phase, pct, message). The Slack bot uses this to relay 25/50/75/100%
+    pings to the user; pct is monotonically non-decreasing in [0.0, 1.0].
     """
     pdf_path = pdf_path.resolve()
     if vendor_key is None:
@@ -76,17 +87,30 @@ def run_pipeline(
     if client is None:
         client = anthropic.Anthropic()
 
+    def _emit(phase: str, pct: float, msg: str) -> None:
+        if progress_callback is not None:
+            try:
+                progress_callback(phase, pct, msg)
+            except Exception as e:
+                if verbose:
+                    print(f"[pipeline] progress_callback error ({phase}): "
+                          f"{type(e).__name__}: {e}")
+
     sidecar = pdf_path.with_suffix("").with_name(f"{pdf_path.stem}.v2.cards.json")
     if cache_sidecar and sidecar.exists():
         if verbose:
             print(f"[pipeline] loading cached extraction from {sidecar.name}")
+        _emit("cached", 1.0, f"Cached extraction loaded from {sidecar.name}")
         return CatalogExtraction.model_validate_json(sidecar.read_text())
+
+    _emit("start", 0.0, f"Starting extraction of {pdf_path.name}")
 
     if verbose:
         print(f"[pipeline] ingesting {pdf_path.name}...")
     doc = ingest(pdf_path)
     if verbose:
         print(f"  -> {doc.page_count} pages rendered + text-extracted")
+    _emit("ingest", 0.02, f"Parsed {doc.page_count} pages from {pdf_path.name}")
 
     result = CatalogExtraction(pdf_path=str(pdf_path), vendor_key=vendor_key)
 
@@ -104,8 +128,17 @@ def run_pipeline(
     if verbose:
         print(f"  -> layout={layout.layout_type}  multi_brand={layout.is_multi_brand}  "
               f"expected_fields={layout.expected_fields_present}")
+    _emit("classify", 0.05,
+          f"Layout: {layout.layout_type}"
+          + (" · multi-brand catalog" if layout.is_multi_brand else " · single-brand"))
 
     # Step 2/3: per-page card detection + extraction (Sonnet, 2 calls per page)
+    # Per-page work is the dominant wall-clock cost; map it into [0.05, 0.95]
+    # so the bot's 25/50/75 thresholds land naturally inside the extract loop.
+    EXTRACT_START_PCT = 0.05
+    EXTRACT_END_PCT = 0.95
+    total_pages = max(1, doc.page_count)
+    cards_so_far = 0
     for page in doc.pages:
         if verbose:
             print(f"[pipeline] page {page.page_no}/{doc.page_count}  "
@@ -144,6 +177,7 @@ def run_pipeline(
                 page=page.page_no, cards=extracted, page_text=page.text,
             )
             result.pages.append(page_result)
+            cards_so_far += len(extracted)
 
             if verbose:
                 stop = e_usage.get("stop_reason", "?")
@@ -158,6 +192,17 @@ def run_pipeline(
             if verbose:
                 print(f"FAILED: {type(e).__name__}: {e}")
 
+        # Emit progress after each page (success OR failure) so the bot sees
+        # monotonic progress even if a page errors out.
+        pages_done = page.page_no
+        pct = EXTRACT_START_PCT + (EXTRACT_END_PCT - EXTRACT_START_PCT) * (
+            pages_done / total_pages
+        )
+        _emit(
+            "extract", pct,
+            f"Extracted page {pages_done}/{total_pages} · {cards_so_far} cards so far",
+        )
+
     # Cold-vendor auto-enrich: if any extracted descriptions aren't in the
     # description_map cache yet, classify them now via one batched Claude call
     # per ~30 novel descriptions. Persists into vocab/description_map.json so
@@ -171,6 +216,7 @@ def run_pipeline(
             import buysheet_v2.verify as _vmod
             if verbose:
                 print(f"[pipeline] auto-enriching description vocab for novel SKUs...")
+            _emit("enrich", 0.96, "Enriching vocab for any novel descriptions")
             # Write current extraction to a temp sidecar so enrich can read it
             tmp_sidecar = pdf_path.with_suffix("").with_name(f"{pdf_path.stem}.v2.cards.json")
             tmp_sidecar.write_text(result.model_dump_json(indent=2, exclude_none=False))
@@ -184,12 +230,13 @@ def run_pipeline(
     # Run the semantic oracle (no API cost — pure source-text verification)
     if verbose:
         print(f"[pipeline] running semantic oracle...")
+    _emit("verify", 0.98, "Verifying every extracted value against source text")
     result = verify_catalog(result)
     summary = oracle_summary(result)
+    passing = sum(s["correct"] for s in summary["per_field"].values())
+    total = sum(s["total"] for s in summary["per_field"].values())
+    contra = sum(s["contradicted"] for s in summary["per_field"].values())
     if verbose:
-        passing = sum(s["correct"] for s in summary["per_field"].values())
-        total = sum(s["total"] for s in summary["per_field"].values())
-        contra = sum(s["contradicted"] for s in summary["per_field"].values())
         print(f"  -> {passing}/{total} cells passing ({100 * passing / max(1, total):.1f}%)  "
               f"contradicted={contra} ({100 * contra / max(1, total):.1f}%)")
 
@@ -201,5 +248,12 @@ def run_pipeline(
         print(f"[pipeline] DONE  cards={len(result.all_cards)}  "
               f"tokens_in={result.tokens_input}  tokens_out={result.tokens_output}  "
               f"cost=${result.cost_usd:.3f}")
+    pct_pass = 100 * passing / max(1, total)
+    _emit(
+        "done", 1.0,
+        f"Extracted {len(result.all_cards)} cards · "
+        f"{passing}/{total} cells verified ({pct_pass:.1f}%) · "
+        f"{contra} contradicted · cost ${result.cost_usd:.2f}",
+    )
 
     return result

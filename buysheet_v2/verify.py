@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
@@ -72,7 +73,15 @@ def _normalize_for_match(s: str) -> str:
     layer. By stripping all whitespace on both sides we accept either form as
     a match. Product strings are long enough that false-positive substring
     matches are vanishingly rare.
+
+    Also folds typographic ligatures and accented characters: PyMuPDF returns
+    PDF glyphs verbatim, so "Diﬀused" (U+FB00) and "Paciﬁc" (U+FB01) come
+    through with single-codepoint ligatures, while the VLM normalizes them
+    back to ASCII. NFKD decomposition expands those into their constituent
+    ASCII characters; stripping combining marks then collapses accents too.
     """
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
     s = s.lower()
     s = re.sub(r"\s*/\s*", "/", s)
     s = re.sub(r"\s+", "", s)
@@ -84,6 +93,53 @@ def find_sku_offset(text: str, sku: str) -> Optional[tuple[int, int]]:
     pat = re.compile(r"\s*".join(re.escape(c) for c in sku))
     m = pat.search(text)
     return (m.start(), m.end()) if m else None
+
+
+def _sku_prefix(sku: str) -> str:
+    """SKU prefix used to group colorway siblings.
+
+    For SKUs in `BASE-COLOR` form (Hoka `1110518-BBLC`, Nike `JA1013-100`)
+    returns `BASE`. For SKUs with no dash, returns the whole SKU — those
+    cards have no siblings to share text with, so the function caller
+    naturally degrades to the per-card region.
+    """
+    return sku.rsplit("-", 1)[0] if "-" in sku else sku
+
+
+def sibling_section_region(
+    page_text: str, sku: str, all_skus_on_page: list[str],
+    head_chars: int = 200, tail_chars: int = 200,
+) -> Optional[str]:
+    """Return text spanning this SKU's prefix family on the page.
+
+    Lookbook catalogs (Hoka, some Nike sections) print one description
+    above a block of colorway siblings — `BONDI 7` then 7 SKUs that all
+    share `1110518-*`. Each individual SKU's per-card region won't
+    contain `BONDI 7` because the header sits before the first sibling.
+    This helper widens the search to "everything from the earliest sibling
+    minus a head buffer, through the last sibling plus a tail buffer," so
+    a shared header description verifies.
+
+    Returns None when there are no siblings (single-SKU silhouette), so
+    callers can fall back to the per-card region instead.
+    """
+    prefix = _sku_prefix(sku)
+    siblings = [
+        s for s in all_skus_on_page
+        if s != sku and _sku_prefix(s) == prefix
+    ]
+    if not siblings:
+        return None
+    positions: list[tuple[int, int]] = []
+    for s in [sku, *siblings]:
+        occ = find_sku_offset(page_text, s)
+        if occ is not None:
+            positions.append(occ)
+    if not positions:
+        return None
+    start = max(0, min(p[0] for p in positions) - head_chars)
+    end = max(p[1] for p in positions) + tail_chars
+    return page_text[start:end]
 
 
 def card_text_region(
@@ -176,16 +232,34 @@ _NUMERIC_DATE_TO_MONTH = {
 def _intro_date_numeric_match(month_code: str, region: str) -> bool:
     """True if a numeric date in the region resolves to the given month code.
 
-    Looks for patterns like MM/DD/YYYY, YYYY-MM-DD, MM/YYYY.
+    Covers the date formats that real vendor catalogs actually use:
+      MM/DD/YYYY  (Nike — "10/01/2026")
+      YYYY-MM-DD  (ISO; less common but cheap to support)
+      MM/YYYY     (some matrix catalogs)
+      MM/DD       (Hoka lookbook — "01/01 (Core)", no year)
+      full month  ("January", "Jan 2027")
     """
     code = month_code.upper()
-    # MM/DD/YYYY pattern
+    # MM/DD/YYYY pattern (most specific — try first)
     for m in re.finditer(r"\b(\d{1,2})/(\d{1,2})/\d{2,4}\b", region):
         if _NUMERIC_DATE_TO_MONTH.get(m.group(1)) == code:
             return True
     # YYYY-MM-DD pattern
     for m in re.finditer(r"\b\d{4}-(\d{1,2})-\d{1,2}\b", region):
         if _NUMERIC_DATE_TO_MONTH.get(m.group(1)) == code:
+            return True
+    # MM/YYYY pattern
+    for m in re.finditer(r"\b(\d{1,2})/(20\d{2})\b", region):
+        if _NUMERIC_DATE_TO_MONTH.get(m.group(1)) == code:
+            return True
+    # Bare MM/DD pattern (no year) — Hoka and other lookbook catalogs use
+    # this for seasonal intro dates. We require both components to fall in
+    # valid date ranges to limit false positives against random number pairs
+    # (sizes use "7-13" with a dash, not a slash, so collision risk is low).
+    for m in re.finditer(r"\b(\d{1,2})/(\d{1,2})\b", region):
+        mm, dd = m.group(1), m.group(2)
+        if (1 <= int(mm) <= 12 and 1 <= int(dd) <= 31
+                and _NUMERIC_DATE_TO_MONTH.get(mm) == code):
             return True
     # Bare month names
     full_names = {"JANUARY": "JAN", "FEBRUARY": "FEB", "MARCH": "MAR",
@@ -298,6 +372,23 @@ def verify_card(
         if _value_in_region(val, region):
             per_field[f] = 1.0
             per_field_source[f] = "vlm+oracle_confirmed"
+        elif f == "description":
+            # Lookbook catalogs (Hoka, some Nike sections) print one
+            # description above a block of colorway siblings — the description
+            # is shared across e.g. all `1110518-*` SKUs. Each sibling's
+            # per-card region won't contain it, so widen to the sibling
+            # section. Color must stay per-card (each SKU has its own).
+            section = sibling_section_region(page_text, card.sku, all_skus_on_page)
+            if section is not None and _value_in_region(val, section):
+                per_field[f] = 0.7
+                per_field_source[f] = "sibling_section_shared"
+            else:
+                per_field[f] = 0.0
+                per_field_source[f] = "vlm_contradicts_source"
+                flags.append(
+                    f"description value not in card region or sibling section "
+                    f"for {card.sku}: value={val!r}"
+                )
         else:
             per_field[f] = 0.0
             per_field_source[f] = "vlm_contradicts_source"
@@ -318,6 +409,14 @@ def verify_card(
         elif _value_in_region(card.brand, region):
             per_field["brand"] = 1.0
             per_field_source["brand"] = "vlm+oracle_confirmed"
+        elif _value_in_region(card.brand, page_text):
+            # Multi-brand catalogs (e.g. SPS, Hanger Clinic) often print the
+            # brand once as a page header rather than per card. The VLM reads
+            # the header and applies it to every SKU on the page — semantically
+            # correct, but the per-card region won't contain the brand string.
+            # Accept page-level presence at amber confidence.
+            per_field["brand"] = 0.7
+            per_field_source["brand"] = "page_level_implicit"
         else:
             per_field["brand"] = 0.0
             per_field_source["brand"] = "vlm_contradicts_source"

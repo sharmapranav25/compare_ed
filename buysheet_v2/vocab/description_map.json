@@ -1,4 +1,69 @@
 {
+  "411": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "628-E": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "6506": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "813 (Lace)": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "813 (Velcro)": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "813, Lace": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "813, Velcro": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "9205 Extreme-Light": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "9306": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "9315": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "9321 Added-Depth": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "9705 Extreme Light Weight": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "9713": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
   "A18155F": {
     "confidence": "low",
     "sg": "Miscellaneous",
@@ -244,6 +309,11 @@
     "sg": "Sneakers",
     "ssg": "Basketball"
   },
+  "Acapulco": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe"
+  },
   "Adizero Adios pro 5": {
     "confidence": "high",
     "sg": "Sneakers",
@@ -264,6 +334,156 @@
     "sg": "Sneakers",
     "ssg": "Running"
   },
+  "Adrenaline GTS 22": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Ambulator": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Annie": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Annie X": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Anodyne \u2014 No. 33 Black Stretch": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Anodyne \u2014 No. 55 Trail Boot": {
+    "confidence": "high",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "Anodyne \u2014 No. 89 Trail Hiker": {
+    "confidence": "high",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "Answer2 551": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Answer2 552": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Answer2 553": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Apex \u2014 Ambulator Conform": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Apex \u2014 Ariya Boot": {
+    "confidence": "high",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "Apex \u2014 Biomechanical": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Apex \u2014 Boat Shoe": {
+    "confidence": "high",
+    "sg": "Shoes",
+    "ssg": "Slip On"
+  },
+  "Apex \u2014 Bolt": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Modern Comfort"
+  },
+  "Apex \u2014 Bungee Lace Up": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Apex \u2014 Bungee Lace Up with Strap": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Modern Comfort"
+  },
+  "Apex \u2014 Double Strap Walker - X Last": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Apex \u2014 Hiking Boot": {
+    "confidence": "high",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "Apex \u2014 Lace Walker - V Last": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Apex \u2014 Lace Walker - X Last": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Apex \u2014 Rhino Runner - X Last": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Apex \u2014 Sierra Trail Runner - V Last": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Apex \u2014 Triple Strap Walker - X Last": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Apex\u2014 Balance Shoe Hiker": {
+    "confidence": "medium",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "Apis \u2014 708": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Apis \u2014 718": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Apis \u2014 728-E": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Ariya Moc Toe": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Slip On"
+  },
+  "Athletic Mary Jane": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe"
+  },
   "BERLIN / LAUNCH": {
     "confidence": "low",
     "sg": "Shoes",
@@ -273,6 +493,21 @@
     "confidence": "medium",
     "sg": "Sneakers",
     "ssg": "Court"
+  },
+  "BONDI 10": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "BONDI 10 WIDE": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "BONDI 7": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
   },
   "BUSENITZ VINTAGE": {
     "confidence": "medium",
@@ -296,6 +531,66 @@
   },
   "BW ARMY LATE ADD": {
     "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Balance Shoe Hiker": {
+    "confidence": "medium",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "Betty": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Miscellaneous"
+  },
+  "Biomechanical Lace-Up": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Biomechanical Triple Strap": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Boat Shoe": {
+    "confidence": "high",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Boss Runner": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Boss Runner - X Last": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Breeze": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Miscellaneous"
+  },
+  "Breeze Sandal": {
+    "confidence": "high",
+    "sg": "Sandals",
+    "ssg": "Slip On"
+  },
+  "Brian X": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Miscellaneous"
+  },
+  "CHALLENGER 9": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "CHALLENGER THREE8": {
+    "confidence": "high",
     "sg": "Sneakers",
     "ssg": "Running"
   },
@@ -324,6 +619,36 @@
     "sg": "Sneakers",
     "ssg": "Vulcanized"
   },
+  "CIELO 70": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "CLIFTON 11": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "CLIFTON 11 GTX": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "CLIFTON 11 GTX WIDE": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "CLIFTON 11 WIDE": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "CLIFTON UTL": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
   "CLIMACOOL": {
     "confidence": "medium",
     "sg": "Sneakers",
@@ -333,6 +658,11 @@
     "confidence": "medium",
     "sg": "Sneakers",
     "ssg": "Causal Shoe"
+  },
+  "COLD PLUNGE BLUE / NE": {
+    "confidence": "low",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
   },
   "CONTROL 5 MJ W": {
     "confidence": "medium",
@@ -349,15 +679,205 @@
     "sg": "Miscellaneous",
     "ssg": "Miscellaneous"
   },
+  "Calgary": {
+    "confidence": "low",
+    "sg": "Boots",
+    "ssg": "Miscellaneous"
+  },
+  "Cara": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Miscellaneous"
+  },
+  "Celia Ruiz \u2014 Franky T": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Miscellaneous"
+  },
+  "Celia Ruiz \u2014 Marc T": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Miscellaneous"
+  },
+  "Celia Ruiz \u2014 Ortho": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Celia Ruiz \u2014 Wallaby T": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Miscellaneous"
+  },
+  "Chris": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Cliff Walker": {
+    "confidence": "medium",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "Connelly": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
   "DETAILS": {
     "confidence": "low",
     "sg": "Miscellaneous",
     "ssg": "Miscellaneous"
   },
+  "Diane": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Donna": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Dr. Comfort \u2014 Boss Boot": {
+    "confidence": "high",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Brian": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Classic": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Douglas": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Fisherman": {
+    "confidence": "medium",
+    "sg": "Sandals",
+    "ssg": "Miscellaneous"
+  },
+  "Dr. Comfort \u2014 Frank": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Grace": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Jason": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Justin": {
+    "confidence": "medium",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Lu Lu Strap": {
+    "confidence": "medium",
+    "sg": "Sandals",
+    "ssg": "Slip On"
+  },
+  "Dr. Comfort \u2014 Mallory": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Mike": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Patty": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Performance": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Training"
+  },
+  "Dr. Comfort \u2014 Protector Boot": {
+    "confidence": "high",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Refresh": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Refresh X": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Scott": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Spirit X Double Depth": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Stallion": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 William": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dr. Comfort \u2014 Wing": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Dublin": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
   "EXCEE HH4": {
     "confidence": "medium",
     "sg": "Sneakers",
     "ssg": "Causal Shoe"
+  },
+  "Edward X": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Endurance": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Training"
+  },
+  "Endurance Plus": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Explorer I": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
   },
   "FORMOTION F50": {
     "confidence": "medium",
@@ -383,6 +903,11 @@
     "confidence": "high",
     "sg": "Sneakers",
     "ssg": "Running"
+  },
+  "Gordon": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
   },
   "HANDBALL SPEZIAL": {
     "confidence": "high",
@@ -414,6 +939,11 @@
     "sg": "Sneakers",
     "ssg": "Basketball"
   },
+  "HUAKA PRO": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
   "HYPERBOOST EDGE": {
     "confidence": "medium",
     "sg": "Sneakers",
@@ -428,6 +958,11 @@
     "confidence": "high",
     "sg": "Sneakers",
     "ssg": "Running"
+  },
+  "Hiker Balance Shoe": {
+    "confidence": "medium",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
   },
   "JABBAR HALF SHELL OG": {
     "confidence": "high",
@@ -479,6 +1014,91 @@
     "sg": "Sneakers",
     "ssg": "Running"
   },
+  "Jack": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Janice": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Jason": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "KAHA 3 GTX": {
+    "confidence": "high",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "Katy": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Kingston": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Lace Boot": {
+    "confidence": "high",
+    "sg": "Boots",
+    "ssg": "Miscellaneous"
+  },
+  "Lace Walker": {
+    "confidence": "high",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Lace Walker - V Last": {
+    "confidence": "high",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Lace Walker - X Last": {
+    "confidence": "high",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Lexington": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Life Walker Strap": {
+    "confidence": "high",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Lima": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Linda": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Lisa": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "MAFATE SPEED 2 GTX": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "MAFATE SPEED 2 TRAPPED ENERGY": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
   "MEGARIDE AG": {
     "confidence": "medium",
     "sg": "Sneakers",
@@ -508,6 +1128,41 @@
     "confidence": "low",
     "sg": "Sneakers",
     "ssg": "Running"
+  },
+  "Marla": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Meghan": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Merry Jane": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Flats"
+  },
+  "Mesh Mary Jane": {
+    "confidence": "high",
+    "sg": "Shoes",
+    "ssg": "Flats"
+  },
+  "Mt Emey 9703": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Mt. Emey 9602": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Mt. Emey 9708": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
   },
   "NA4": {
     "confidence": "low",
@@ -679,6 +1334,151 @@
     "sg": "Miscellaneous",
     "ssg": "Miscellaneous"
   },
+  "No. 11 Black/Gray": {
+    "confidence": "low",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "No. 11 Gray": {
+    "confidence": "low",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "No. 16 Black": {
+    "confidence": "low",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "No. 16 Gray": {
+    "confidence": "low",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "No. 22 Black/Red": {
+    "confidence": "low",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "No. 22 Gray/Black": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 23 Black/Gray": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 23 White/Blue": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 44 Dark Gray": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 44 Stone": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 45 Black/Gray": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 45 Gray/Orange": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 45 Purple/Pink": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 46 Black/Gray": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 46 Gray/Blue": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 50 Sport Trainer": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Training"
+  },
+  "No. 51 Black": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 51 Cognac": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 52 Men's Velcro": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Slip On"
+  },
+  "No. 56 Oil Black": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 56 Whiskey": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 74 Double Depth": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 77 Black/Gray": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 90 Oil Black": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 90 Whiskey": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 93 Black": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "No. 93 White": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
+  "ORA PRIMO EXT": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "One LT": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Miscellaneous"
+  },
   "PARIS": {
     "confidence": "low",
     "sg": "Shoes",
@@ -698,6 +1498,31 @@
     "confidence": "high",
     "sg": "Sneakers",
     "ssg": "Court"
+  },
+  "Paradise": {
+    "confidence": "low",
+    "sg": "Sandals",
+    "ssg": "Slip On"
+  },
+  "Performance X": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Training"
+  },
+  "Propet \u2014 Sentry": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Propet \u2014 Shield Walker": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "RESTORE TC": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Modern Comfort"
   },
   "ROD LAVER": {
     "confidence": "high",
@@ -723,6 +1548,41 @@
     "confidence": "medium",
     "sg": "Sneakers",
     "ssg": "Running"
+  },
+  "Ranger Boot": {
+    "confidence": "high",
+    "sg": "Boots",
+    "ssg": "Miscellaneous"
+  },
+  "Regina": {
+    "confidence": "low",
+    "sg": "Heels",
+    "ssg": "Flats"
+  },
+  "Reina Runner": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Reina Runner - X Last": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Rhino Runner": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Ridge Walker": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Ruk Chukka Boot": {
+    "confidence": "high",
+    "sg": "Boots",
+    "ssg": "Miscellaneous"
   },
   "SALA": {
     "confidence": "medium",
@@ -759,6 +1619,41 @@
     "sg": "Sneakers",
     "ssg": "Causal Shoe"
   },
+  "SOLVRA SLIDE": {
+    "confidence": "high",
+    "sg": "Sandals",
+    "ssg": "Slip On"
+  },
+  "SPEED MOC": {
+    "confidence": "high",
+    "sg": "Shoes",
+    "ssg": "Slip On"
+  },
+  "SPEEDGOAT 2": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "SPEEDGOAT 2 TRAPPED ENERGY": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "SPEEDGOAT 2 TS": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "SPEEDGOAT 7 GTX": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "SPEEDGOAT 7 GTX WIDE": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
   "STAN SMITH": {
     "confidence": "high",
     "sg": "Sneakers",
@@ -788,6 +1683,11 @@
     "confidence": "high",
     "sg": "Sneakers",
     "ssg": "Court"
+  },
+  "STINSON 8": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
   },
   "STRIPE": {
     "confidence": "low",
@@ -849,6 +1749,81 @@
     "sg": "Sneakers",
     "ssg": "Cupsole"
   },
+  "Santiago": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe"
+  },
+  "Stability Walker": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "Stability X": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Training"
+  },
+  "Stability X Strap": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Training"
+  },
+  "Stealth Runner - V Last": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "SureFit \u2014 Athens": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "SureFit \u2014 Barbados": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "SureFit \u2014 Copenhagen": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "SureFit \u2014 London": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "SureFit \u2014 Manila": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "SureFit \u2014 Milan": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "SureFit \u2014 Paris": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "SureFit \u2014 Rome": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "SureFit \u2014 Sydney": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "SureFit \u2014 Valencia": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
   "TAEKWONDO MEI BALLET W": {
     "confidence": "high",
     "sg": "Heels",
@@ -859,10 +1834,20 @@
     "sg": "Sneakers",
     "ssg": "Training"
   },
+  "TAEKWONDO W": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Court"
+  },
   "TANGO MAGNUM": {
     "confidence": "low",
     "sg": "Boots",
     "ssg": "Sneakerboot"
+  },
+  "TECTON X RT": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
   },
   "TERREX AGRAVIC SPEED ULTRA 2": {
     "confidence": "high",
@@ -899,10 +1884,25 @@
     "sg": "Sneakers",
     "ssg": "Running"
   },
+  "TOR SUMMIT FLD": {
+    "confidence": "medium",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
+  "TOR ULTRA LO": {
+    "confidence": "medium",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
+  },
   "TYSHAWN II": {
     "confidence": "medium",
     "sg": "Sneakers",
     "ssg": "Vulcanized"
+  },
+  "Triple Strap Walker": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Modern Comfort"
   },
   "ULTRA 2": {
     "confidence": "medium",
@@ -913,6 +1913,21 @@
     "confidence": "medium",
     "sg": "Boots",
     "ssg": "Sneakerboot"
+  },
+  "Ultra": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Utility Shoe": {
+    "confidence": "medium",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Vigor Hiking Boot": {
+    "confidence": "high",
+    "sg": "Boots",
+    "ssg": "Modern Comfort"
   },
   "W AIR FORCE 1 '07": {
     "confidence": "high",
@@ -933,6 +1948,11 @@
     "confidence": "high",
     "sg": "Sneakers",
     "ssg": "Court"
+  },
+  "W AIR FORCE 1 '07 NA5": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe"
   },
   "W AIR MAX 270 HH2": {
     "confidence": "high",
@@ -1095,6 +2115,26 @@
     "ssg": "Court"
   },
   "WMNS NIKE INITIATOR - GEL": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "William X": {
+    "confidence": "low",
+    "sg": "Shoes",
+    "ssg": "Causal Shoe"
+  },
+  "Winner": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Winner Plus": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "Winner X": {
     "confidence": "medium",
     "sg": "Sneakers",
     "ssg": "Running"

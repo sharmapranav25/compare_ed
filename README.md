@@ -21,7 +21,7 @@ pip install -e ./buysheet_v2
 cp .env.example .env
 # edit .env, set ANTHROPIC_API_KEY=sk-ant-...
 
-# 3. Run on a PDF
+# 3. Run on a PDF (CLI)
 python -m buysheet_v2 run path/to/<vendor>.pdf --vendor-key <vendor>
 
 # Output: BUYSHEET_<vendor>_v2.xlsx at repo root
@@ -29,6 +29,31 @@ python -m buysheet_v2 run path/to/<vendor>.pdf --vendor-key <vendor>
 
 The first run on a PDF takes 3-15 minutes (Sonnet 4.6 vision calls per page);
 subsequent runs are cheap because per-doc extraction is cached in a sidecar.
+
+### Slack-bot mode (preferred for buyers)
+
+The agent ships with a Socket Mode Slack bot so a buyer can drop a PDF into a
+channel and get the finished workbook back without touching the CLI:
+
+```bash
+# After filling in SLACK_BOT_TOKEN, SLACK_APP_TOKEN, SLACK_CHANNEL_ID in .env
+python -m buysheet_v2.slack_bot
+```
+
+User flow:
+
+1. Drop PDF in the configured channel.
+2. Bot replies in thread with an ETA (~20 s/page).
+3. Pings at 25 / 50 / 75% during extraction.
+4. Final post: summary (cards extracted, % verified, amber + red cell counts,
+   cost) and the finished `BUYSHEET_<vendor>_v2.xlsx` attached to the same
+   thread.
+
+Every PDF run is persisted to `~/buysheet_runs/<pdf_stem>/<timestamp>/` with
+the source PDF, extraction sidecar, and output workbook — so post-hoc
+accuracy analysis is always possible.
+
+See [`.env.example`](.env.example) for the full Slack app setup checklist.
 
 ## What it does
 
@@ -86,20 +111,32 @@ KithxKeeloShoeBuying/
 
 ## Verified accuracy (v1)
 
-After-mg-relaxation oracle scoring, per-cell:
+Per-cell oracle scoring, locked in via `tests/baseline_accuracy.json`:
 
-| Vendor | Cards | All-fields | Contradicted | Core fields* |
-|--------|------:|-----------:|-------------:|-------------:|
-| Nike HO26 | 110 | **87.4%** | 3.2% | **95.0%** |
-| Adidas FW26 premium | 346 | **87.4%** | 1.6% | **93.5%** |
-| Converse HO26 | 15 | 69.2% | 6.3% | 69.6% |
+| Vendor | Cards | Per-cell | Contradicted (= blank in xlsx) |
+|--------|------:|---------:|-------------------------------:|
+| Nike HO26 | 110 | **97.67%** | 0.20% |
+| Adidas FW26 premium | 346 | **94.74%** | 2.03% |
+| Converse HO26 | 15 | 74.83% | 6.29% |
 
-\* Core fields = sku, description, color, brand, usd_cost, intro_date,
-standard_color (excludes mg/sg/ssg which depend on vocab coverage)
+Cold-vendor extractions seen during multi-PDF Slack testing (zero
+configuration, auto-vocab-enriched):
+
+| Vendor | Cards | Per-cell | Notes |
+|--------|------:|---------:|-------|
+| SPS 2024 (multi-brand) | 257 | ~96% | Brand 100%, color 92%, description 92% |
+| Hoka SP27 Pinnacle (lookbook) | 172 | ~92% | Description 97.7%, intro_date 98.2% |
 
 Converse is the harder vendor because 7 of 17 pages are image-only
 PPT-exported pages (no text layer); the semantic oracle can't verify those
 values against source text, so they're left as VLM-only confidence.
+
+The 2026-05 oracle pass added four verifier fixes that lifted Hoka description
+from 35% → 97.7%, Hoka intro_date from 0% → 98.2%, and SPS brand from 91% →
+100%, all without re-extracting (the oracle changes alone closed the gap):
+ligature folding (PDF `ﬀ`/`ﬁ` ↔ ASCII `ff`/`fi`), numeric date pattern
+matching (`MM/DD` → `JAN`), page-level brand fallback for multi-brand catalogs,
+and shared-description recognition for sibling-SKU sections.
 
 Full per-field breakdown and per-catalog-type confidence tiers in
 [ACCURACY_EXPECTATIONS.md](ACCURACY_EXPECTATIONS.md). Detailed pipeline
