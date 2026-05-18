@@ -1,0 +1,45 @@
+{
+  "_doc": "Token -> MG (Merch Group) mapping used by deterministic_pipeline.py Stage 1. Tokens are matched case-insensitively as whole words. Policy: UNISEX -> K-Footwear (kids) for now; revisit when a doc mixes unisex with M and W.",
+  "_emit_as": "raw_token",
+  "_emit_note": "field_value.value carries the matched token in uppercase (MENS / WMNS / KIDS / UNISEX); phase5/populate.py normalize_gender maps those into the Excel MG dropdown vocabulary (M-Footwear / W-Footwear / K-Footwear).",
+  "tokens": {
+    "MENS":   "M-Footwear",
+    "MEN":    "M-Footwear",
+    "MEN'S":  "M-Footwear",
+    "MALE":   "M-Footwear",
+    "WMNS":   "W-Footwear",
+    "WOMENS": "W-Footwear",
+    "WOMEN":  "W-Footwear",
+    "WOMEN'S":"W-Footwear",
+    "FEMALE": "W-Footwear",
+    "GS":     "K-Footwear",
+    "YOUTH":  "K-Footwear",
+    "TD":     "K-Footwear",
+    "PS":     "K-Footwear",
+    "KIDS":   "K-Footwear",
+    "CHILD":  "K-Footwear",
+    "CHILDREN":"K-Footwear",
+    "INFANT": "K-Footwear",
+    "TODDLER":"K-Footwear",
+    "UNISEX": "K-Footwear",
+    "U":      "K-Footwear"
+  },
+  "description_prefix": {
+    "_doc": "Single-letter prefixes seen at the START of a product description line, separated by whitespace (e.g. 'W AIR FORCE 1 NA' -> W). Matched only when followed by a space.",
+    "M": "M-Footwear",
+    "W": "W-Footwear",
+    "U": "K-Footwear"
+  },
+  "description_suffix": {
+    "_doc": "Single-letter or token at the END of a product description (e.g. 'JABBAR HI W' -> W). Industry convention across major footwear vendors. Matched as a whole word at end-of-string, so internal Ws (e.g. 'BROWN') don't trip it.",
+    "M": "M-Footwear",
+    "W": "W-Footwear",
+    "U": "K-Footwear"
+  },
+  "canonical_value": {
+    "_doc": "What we write into field_value.value for the gender field.",
+    "M-Footwear": "MENS",
+    "W-Footwear": "WMNS",
+    "K-Footwear": "UNISEX"
+  }
+}

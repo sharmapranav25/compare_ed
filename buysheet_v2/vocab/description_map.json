@@ -1,0 +1,843 @@
+{
+  "_comment": "Maps a product description string -> {sg, ssg, confidence}. Populated by canonicalize.py as it queries Claude per unique description. Persistent cache so re-runs of the same vendor (or cross-vendor model overlaps like AIR FORCE 1) cost $0.",
+  "A18155F": {
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous",
+    "confidence": "low"
+  },
+  "A18156F": {
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous",
+    "confidence": "low"
+  },
+  "A18157F": {
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous",
+    "confidence": "low"
+  },
+  "A18158F": {
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous",
+    "confidence": "low"
+  },
+  "A20048C": {
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous",
+    "confidence": "low"
+  },
+  "A20239C": {
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous",
+    "confidence": "low"
+  },
+  "ADI SUN W": {
+    "sg": "Sandals",
+    "ssg": "Miscellaneous",
+    "confidence": "medium"
+  },
+  "ADIMULE": {
+    "sg": "Slippers",
+    "ssg": "Slip On",
+    "confidence": "high"
+  },
+  "ADISTAR CONTROL 5": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "ADISTAR MLD": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "ADIZERO F50": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "AGRAVIC TT": {
+    "sg": "Shoes",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "AIR FORCE 1 '07 HH": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "AIR FORCE 1 '07 LV8 APLA": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "AIR FORCE 1 '07 NA3": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "AIR FORCE 1 '07 PRM NA4": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "AIR MAX 270 PREMIUM DSG": {
+    "sg": "Sneakers",
+    "ssg": "Modern Comfort",
+    "confidence": "high"
+  },
+  "AIR MAX 90 FTL1": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "AIR MAX 90 FTL3": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "AIR MAX 90 HH4": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "AIR MAX 90 JD1": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "AIR MAX 90 NA3": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "AIR MAX 90 PRM NA4": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "AIR MAX 90 SE APLA": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "AIR MAX FOAMDOME NA1": {
+    "sg": "Boots",
+    "ssg": "Sneakerboot",
+    "confidence": "high"
+  },
+  "AIR MAX LTD 3 HH8": {
+    "sg": "Sneakers",
+    "ssg": "Modern Comfort",
+    "confidence": "medium"
+  },
+  "AIR MAX TORCH 4 HH8": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "AIR MORE UPTEMPO '96 NA2": {
+    "sg": "Sneakers",
+    "ssg": "Basketball",
+    "confidence": "high"
+  },
+  "AIR VAPORMAX PLUS HH7": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "AIR ZOOM FLIGHT THE GLOVE NA19": {
+    "sg": "Sneakers",
+    "ssg": "Basketball",
+    "confidence": "high"
+  },
+  "ANTHONY EDWARDS 2": {
+    "sg": "Sneakers",
+    "ssg": "Basketball",
+    "confidence": "high"
+  },
+  "BERLIN / LAUNCH": {
+    "sg": "Shoes",
+    "ssg": "Causal Shoe",
+    "confidence": "low"
+  },
+  "BILLIE JEAN KING W": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "medium"
+  },
+  "BUSENITZ VINTAGE": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "medium"
+  },
+  "BW ARMY": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "BW ARMY DECON": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "BW ARMY DECON LATE ADD": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "BW ARMY LATE ADD": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "CHICAGO": {
+    "sg": "Sneakers",
+    "ssg": "Basketball",
+    "confidence": "medium"
+  },
+  "CHUCK 70": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "high"
+  },
+  "CHUCK 70 BURNISHED LEATHER": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "high"
+  },
+  "CHUCK 70 CANVAS": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "high"
+  },
+  "CHUCK 70 GORE-TEX WATERPROOF SUEDE": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "high"
+  },
+  "CLIMACOOL": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "CONTROL 5 MJ W": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "CONTROL 5 W": {
+    "sg": "Sneakers",
+    "ssg": "Training",
+    "confidence": "medium"
+  },
+  "COREWHITE/COREWHITE/DARKBLUE": {
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous",
+    "confidence": "low"
+  },
+  "DETAILS": {
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous",
+    "confidence": "low"
+  },
+  "EXCEE HH4": {
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe",
+    "confidence": "medium"
+  },
+  "FORMOTION F50": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "FORUM SQ TRAINER W": {
+    "sg": "Sneakers",
+    "ssg": "Training",
+    "confidence": "medium"
+  },
+  "GHOST SPRINT BALLET W": {
+    "sg": "Heels",
+    "ssg": "Flats",
+    "confidence": "medium"
+  },
+  "GHOST SPRINT BOOT W": {
+    "sg": "Boots",
+    "ssg": "Sneakerboot",
+    "confidence": "medium"
+  },
+  "GHOST SPRINT W": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "HANDBALL SPEZIAL": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "HANDBALL SPEZIAL LOAFER": {
+    "sg": "Shoes",
+    "ssg": "Causal Shoe",
+    "confidence": "medium"
+  },
+  "HANDBALL SPEZIAL LOAFER PREM": {
+    "sg": "Shoes",
+    "ssg": "Causal Shoe",
+    "confidence": "medium"
+  },
+  "HANDBALL SPEZIAL LOAFER W": {
+    "sg": "Shoes",
+    "ssg": "Causal Shoe",
+    "confidence": "high"
+  },
+  "HANDBALL SPEZIAL W": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "JABBAR HALF SHELL OG": {
+    "sg": "Sneakers",
+    "ssg": "Basketball",
+    "confidence": "high"
+  },
+  "JABBAR HI": {
+    "sg": "Sneakers",
+    "ssg": "Basketball",
+    "confidence": "high"
+  },
+  "JABBAR HI W": {
+    "sg": "Sneakers",
+    "ssg": "Basketball",
+    "confidence": "high"
+  },
+  "JABBAR LO": {
+    "sg": "Sneakers",
+    "ssg": "Basketball",
+    "confidence": "medium"
+  },
+  "JABBAR LO WOMENS SCRUNCH": {
+    "sg": "Sneakers",
+    "ssg": "Basketball",
+    "confidence": "medium"
+  },
+  "JAPAN": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "low"
+  },
+  "JAPAN DECON W": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "medium"
+  },
+  "JAPAN LUX W": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "JAPAN SQ W": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "JAPAN W": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "MEGARIDE AG": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "MEGARIDE F50": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "MEXICANA": {
+    "sg": "Boots",
+    "ssg": "Sneakerboot",
+    "confidence": "medium"
+  },
+  "MLD W": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "low"
+  },
+  "MOSSY OAK": {
+    "sg": "Boots",
+    "ssg": "Miscellaneous",
+    "confidence": "low"
+  },
+  "MOTION 2 NA12": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "low"
+  },
+  "NA4": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "low"
+  },
+  "NIKE AF 1 '07 LV8 SNIPES": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE AIR FORCE 1 '07 FTL1": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE AIR FORCE 1 '07 GEL1": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE AIR FORCE 1 '07 GEL2": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE AIR FORCE 1 '07 JD1": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE AIR FORCE 1 '07 LV8 CD": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE AIR FORCE 1 '07 LV8 FL": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE AIR FORCE 1 '07 LV8 JD": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE AIR FORCE 1 '07 LV8 JD 2": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE AIR FORCE 1 '07 LV8 JD 3": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE AIR FORCE 1 '07 LV8 SC": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE AIR MAX 90 JD": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "NIKE AIR MAX 90 JD 2": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "NIKE AIR MAX 95 BIG BUBBLE APL": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "NIKE AIR MAX 95 BIG BUBBLE JD": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "NIKE AIR MAX 95 BIG BUBBLE JD2": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "NIKE AIR MAX 95 BIG BUBBLE JD3": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "NIKE AIR MAX 95 BIG BUBBLE NA4": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "NIKE AIR MAX 95 BIG BUBBLE PRM": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "NIKE DUNK LOW RETRO NA3": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE DUNK LOW SC": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "NIKE P-6000 JD": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "NIKE P-6000 JD1": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "NIKE P-6000 NA3": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "NIKE ZOOM SKYLON 11 NA11": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "NYC": {
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous",
+    "confidence": "low"
+  },
+  "PARIS": {
+    "sg": "Shoes",
+    "ssg": "Causal Shoe",
+    "confidence": "low"
+  },
+  "PARIS W": {
+    "sg": "Heels",
+    "ssg": "Flats",
+    "confidence": "low"
+  },
+  "ROD LAVER": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "RUN STAR CRUSH CROCODILE LEATHER": {
+    "sg": "Sneakers",
+    "ssg": "Cupsole",
+    "confidence": "medium"
+  },
+  "RUN STAR CRUSH LEATHER": {
+    "sg": "Sneakers",
+    "ssg": "Cupsole",
+    "confidence": "medium"
+  },
+  "RUNWHT/RUUNWHT/COLOLNAV": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "RUNWHT/RUUNWHT/FAIRIRWA": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "SALA": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "medium"
+  },
+  "SALA EDIT": {
+    "sg": "Shoes",
+    "ssg": "Causal Shoe",
+    "confidence": "medium"
+  },
+  "SAMBA 62 SUPER": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "medium"
+  },
+  "SAMBA JP": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "medium"
+  },
+  "SAMBA OG": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "high"
+  },
+  "SAMBA OG W": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "high"
+  },
+  "SL WOVEN M": {
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe",
+    "confidence": "medium"
+  },
+  "STAN SMITH": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "STAN SMITH LO BALLET W": {
+    "sg": "Shoes",
+    "ssg": "Flats",
+    "confidence": "high"
+  },
+  "STAN SMITH LO PRO W": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "STAN SMITH SMITH W": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "STAN SMITH SQ W": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "STAN SMITH W": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "STRIPE": {
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous",
+    "confidence": "low"
+  },
+  "SUPERSKATE 02": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "medium"
+  },
+  "SUPERSTAR II": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "SUPERSTAR II LATE ADD": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "SUPERSTAR II MID": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "medium"
+  },
+  "SUPERSTAR LO PRO W": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "medium"
+  },
+  "SUPERSTAR LUX": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "SUPERSTAR LUX LATE ADD": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "SUPERSTAR SQ W": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "SUPERSTAR VINTAGE": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "SUPERSTAR VINTAGE LATE ADD": {
+    "sg": "Sneakers",
+    "ssg": "Cupsole",
+    "confidence": "high"
+  },
+  "SUPERSTAR VINTAGE SHORT SHELL": {
+    "sg": "Sneakers",
+    "ssg": "Cupsole",
+    "confidence": "medium"
+  },
+  "TAEKWONDO MEI BALLET W": {
+    "sg": "Heels",
+    "ssg": "Flats",
+    "confidence": "high"
+  },
+  "TAEKWONDO MEI ELITE W": {
+    "sg": "Sneakers",
+    "ssg": "Training",
+    "confidence": "medium"
+  },
+  "TANGO MAGNUM": {
+    "sg": "Boots",
+    "ssg": "Sneakerboot",
+    "confidence": "low"
+  },
+  "TOKYO MJ W": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "medium"
+  },
+  "TOKYO W": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "low"
+  },
+  "TYSHAWN II": {
+    "sg": "Sneakers",
+    "ssg": "Vulcanized",
+    "confidence": "medium"
+  },
+  "ULTRA 2": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "ULTRA GTX": {
+    "sg": "Boots",
+    "ssg": "Sneakerboot",
+    "confidence": "medium"
+  },
+  "W AIR FORCE 1 '07 JD2": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "W AIR FORCE 1 '07 NA3": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "W AIR MAX 270 HH2": {
+    "sg": "Sneakers",
+    "ssg": "Modern Comfort",
+    "confidence": "high"
+  },
+  "W AIR MAX 270 PREMIUM DSG": {
+    "sg": "Sneakers",
+    "ssg": "Modern Comfort",
+    "confidence": "high"
+  },
+  "W NIKE AIR MAX MOTO 2K JDW": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE AIR MAX MOTO 2K NA3": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE COURT VISION LO NN NA16": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "W NIKE DUNK LOW LX CN": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "W NIKE P-6000 HH2": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE P-6000 JDSW": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE P-6000 JDW": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE P-6000 NA16": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE P-6000 NA6": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE P-6000 WTR": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE V5 RNR JD1": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE V5 RNR NA16": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE V5 RNR NA6": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE ZOOM SKYLON 11 NA18": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "W NIKE ZOOM VOMERO 5 JD2": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "W NIKE ZOOM VOMERO 5 NA16": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "W SPRINT SISTER 2026 NA16": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  },
+  "WMNS AIR FORCE 1 '07 GG": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "WMNS AIR MAX 90 NA5": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "high"
+  },
+  "WMNS NIKE DUNK LOW NA5": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "WMNS NIKE DUNK LOW SE HH2": {
+    "sg": "Sneakers",
+    "ssg": "Court",
+    "confidence": "high"
+  },
+  "WMNS NIKE INITIATOR - GEL": {
+    "sg": "Sneakers",
+    "ssg": "Running",
+    "confidence": "medium"
+  }
+}

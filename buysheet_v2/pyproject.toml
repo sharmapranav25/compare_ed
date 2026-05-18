@@ -1,0 +1,23 @@
+[project]
+name = "buysheet_v2"
+version = "0.1.0"
+description = "VLM-first card-oracle pipeline for shoebuyer catalog extraction"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40",
+    "pydantic>=2.0",
+    "pymupdf>=1.24",
+    "pypdfium2>=4.30",
+    "openpyxl>=3.1",
+    "pillow>=10.0",
+    "scipy>=1.10",
+    "numpy>=1.26",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+buysheet-v2 = "buysheet_v2.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["buysheet_v2*"]

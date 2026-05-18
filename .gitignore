@@ -1,0 +1,64 @@
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Pipeline artifacts — never committed
+files/                      # vendor PDFs + per-doc sidecars (catalog IP)
+BUYSHEET_*.xlsx             # generated outputs
+BUYSHEET_*.report.md
+*.v2.cards.json
+*.v2.photo_bboxes.json
+*.docling*.json
+*.augmented.json
+*.reconciled.*
+*.skus.json
+*.fields_candidates.json
+*.relational.json
+*.deterministic.relational.json
+*.correctness.json
+*.elements.json
+*.normalized.json
+*.layout.json
+*.pictures*.json
+*.pictures.csv
+*.picture_index.json
+*.sku_photos.json
+*.sku_images.json
+*.sku_images.log
+*.audit/
+
+# Logs
+*.log
+/tmp/
+
+# Local notes
+NOTES.md
+SCRATCH.md
+TODO.md
+
+# Allow the template itself (immutable shared asset)
+!BUYSHEET_template.xlsx

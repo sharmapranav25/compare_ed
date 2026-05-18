@@ -1,0 +1,94 @@
+{
+  "source_file": "BUYSHEET_template.xlsx",
+  "source_sha256": "f6810fd4dbde1b1d",
+  "mg": [
+    "M-Footwear",
+    "W-Footwear",
+    "K-Footwear"
+  ],
+  "sg": [
+    "Sneakers",
+    "Boots",
+    "Heels",
+    "Miscellaneous",
+    "Sandals",
+    "Shoes",
+    "Slippers"
+  ],
+  "ssg": [
+    "Basketball",
+    "Causal Shoe",
+    "Court",
+    "Cupsole",
+    "Flats",
+    "Heels",
+    "Miscellaneous",
+    "Modern Comfort",
+    "Running",
+    "Slip On",
+    "Sneakerboot",
+    "Training",
+    "Vulcanized"
+  ],
+  "standard_color": [
+    "Beige",
+    "Black",
+    "Blue",
+    "Brown",
+    "Burgundy",
+    "Clear",
+    "Gold",
+    "Gold/Silver",
+    "Green",
+    "Grey",
+    "Multi",
+    "Orange",
+    "Pink",
+    "Purple",
+    "Red",
+    "White",
+    "Yellow"
+  ],
+  "pu1": [
+    "Consignment",
+    "Core",
+    "In Line",
+    "Quickstrike",
+    "RF",
+    "SMU"
+  ],
+  "reorder": [
+    "Yes",
+    "No"
+  ],
+  "intro_date": [
+    "JAN",
+    "FEB",
+    "MAR",
+    "APR",
+    "MAY",
+    "JUN",
+    "JUL",
+    "AUG",
+    "SEP",
+    "OCT",
+    "NOV",
+    "DEC"
+  ],
+  "pre_size": [
+    "M US",
+    "W US",
+    "U US",
+    "M EUR",
+    "W EUR",
+    "U EUR",
+    "TD",
+    "PS",
+    "GS",
+    "K-EUR1",
+    "K-EUR2",
+    "MOONBOOTS",
+    "ALPHA",
+    "OS"
+  ]
+}
