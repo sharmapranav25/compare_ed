@@ -133,24 +133,32 @@ def _numeric_in_region(value, region: str) -> bool:
     return False
 
 
-def _derive_mg(description: Optional[str], region: Optional[str]) -> Optional[str]:
-    """Derive MG from description prefix / gender tokens. Returns None if no signal."""
-    blobs = []
-    if description:
-        blobs.append(description)
-    if region:
-        blobs.append(region)
-    combined = " ".join(blobs).upper()
-    # Strong prefix tokens
-    if re.search(r"\b(WMNS|WOMEN'S|WOMENS|WOMEN)\b", combined):
+def _derive_mg(description: Optional[str], region: Optional[str] = None) -> Optional[str]:
+    """Derive MG from the SKU's own description tokens. Returns None if no signal.
+
+    IMPORTANT: only the per-card description is used as a signal, NOT the page
+    region. Earlier versions also scanned the region, but that produces false
+    positives on pages where men's and women's SKUs share a region — e.g. Nike
+    page 1 has "WMNS AIR FORCE 1" sibling SKUs in the same text block as men's
+    Air Force 1 SKUs, so region-scanning falsely tags every men's SKU as W.
+    The `region` parameter is kept for backward compatibility but ignored.
+    """
+    _ = region  # intentionally unused; see docstring
+    if not description:
+        return None
+    upper = description.upper()
+    # Strong prefix tokens — match within the description only
+    if re.search(r"\b(WMNS|WOMEN'S|WOMENS|WOMEN)\b", upper):
         return "W-Footwear"
-    if re.search(r"\bW\s+[A-Z]", combined):  # description starts with "W "
+    if re.match(r"^W\s+[A-Z]", upper):  # description STARTS with "W "
         return "W-Footwear"
-    if re.search(r"\b(MENS|MEN'S|MALE)\b", combined):
+    if re.search(r"\b(MENS|MEN'S|MALE)\b", upper):
         return "M-Footwear"
-    if re.search(r"\b(KIDS|YOUTH|CHILD|TODDLER|INFANT|\bGS\b|\bPS\b|\bTD\b)\b", combined):
+    if re.match(r"^M\s+[A-Z]", upper):  # description STARTS with "M "
+        return "M-Footwear"
+    if re.search(r"\b(KIDS|YOUTH|CHILD|TODDLER|INFANT|\bGS\b|\bPS\b|\bTD\b)\b", upper):
         return "K-Footwear"
-    if "UNISEX" in combined:
+    if "UNISEX" in upper:
         return "K-Footwear"
     return None
 
@@ -267,14 +275,27 @@ def verify_card(
         flags.append(f"sku '{card.sku}' not found in page {card.page} text")
 
     # Description + color: verified by source-text substring match
-    for f, v in [("description", card.description), ("color", card.color)]:
-        if v is None:
+    for f, val in [("description", card.description), ("color", card.color)]:
+        if val is None:
+            continue
+        # Extraction-error check: VLM sometimes copies the description into the
+        # color field on cards where the color text is hard to spot. Flag this
+        # explicitly so the buyer sees amber + provenance, since the value IS
+        # in the source but in the WRONG field.
+        if (f == "color" and card.description and
+                str(val).strip().lower() == card.description.strip().lower()):
+            per_field[f] = 0.0
+            per_field_source[f] = "vlm_extraction_error_color_eq_description"
+            flags.append(
+                f"color value equals description for {card.sku} — "
+                f"likely VLM extraction error (no color text visible on card)"
+            )
             continue
         if region is None:
             per_field[f] = 0.5
             per_field_source[f] = "vlm_only_no_region"
             continue
-        if _value_in_region(v, region):
+        if _value_in_region(val, region):
             per_field[f] = 1.0
             per_field_source[f] = "vlm+oracle_confirmed"
         else:
@@ -282,7 +303,7 @@ def verify_card(
             per_field_source[f] = "vlm_contradicts_source"
             flags.append(
                 f"{f} value not in card region for {card.sku}: "
-                f"value={v!r}  (cross-card mis-attribution?)"
+                f"value={val!r}  (cross-card mis-attribution?)"
             )
 
     # Brand: only check per-card text if this is a multi-brand catalog. For
