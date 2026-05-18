@@ -132,7 +132,54 @@ are free.
   wrong. Closing them is a `vocab/description_map.json` enrichment task,
   not a model issue.
 
-## Run a vendor
+## Random / cold catalog onboarding
+
+For a vendor we've never run before, the pipeline auto-enriches the vocab
+cache as part of the first run — no per-vendor configuration needed:
+
+```bash
+python -m buysheet_v2 run files/<new_vendor>/<catalog>.pdf --vendor-key <new_vendor>
+```
+
+What happens on a cold run:
+
+1. **ingest + classify + cards + extract** — Sonnet 4.6 / Opus 4.7 do the
+   layout-agnostic vision work. Cold accuracy estimated 85-92% per cell.
+2. **auto-enrich** — any product descriptions in this catalog that aren't
+   yet in `vocab/description_map.json` get classified via one batched
+   Claude call (~$0.03 per 30 novel descriptions). Persisted to repo;
+   benefits every future catalog with shared silhouettes.
+3. **semantic oracle** — runs with the freshly-enriched vocab. Final
+   confidence reflects the enriched state.
+4. **write** — `BUYSHEET_<vendor>_v2.xlsx` with amber-flagged uncertain cells.
+
+To skip enrichment (e.g. for repeated test runs you don't want to grow
+the cache):
+
+```bash
+# Programmatic API only:
+from buysheet_v2.pipeline import run_pipeline
+run_pipeline(pdf, auto_enrich=False)
+```
+
+## Regression checking
+
+After ANY change to `verify.py`, `extract.py`, prompts, or vocab files,
+run the regression check before pushing:
+
+```bash
+python -m buysheet_v2.tools.verify_all
+```
+
+This re-runs the semantic oracle on every cached vendor sidecar, compares
+to `tests/baseline_accuracy.json`, and exits non-zero if any vendor
+regressed >0.5pp. To lock in a new baseline after a verified improvement:
+
+```bash
+python -m buysheet_v2.tools.verify_all --update-baseline
+```
+
+## Run a vendor (specific commands)
 
 ```bash
 # Default (full pipeline + per-cell confidence + sidecar caching)

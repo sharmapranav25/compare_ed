@@ -134,7 +134,9 @@ extraction problem.
 Use the eval harness to convert estimates into hard numbers:
 
 ```bash
-# Step 1: Run the pipeline on the new vendor's PDF
+# Step 1: Run the pipeline on the new vendor's PDF.
+# auto_enrich=True (default) classifies any novel descriptions into the
+# vocab cache during the first run, so the oracle sees enriched vocab.
 python -m buysheet_v2 run path/to/new_vendor.pdf --vendor-key new_vendor
 
 # Step 2: Build a scaffold of expected values from the v1 output (one-time)
@@ -152,6 +154,45 @@ python -m buysheet_v2 eval new_vendor
 ```
 
 This is the *only* way to convert "estimated 85%" into "measured X%" for a specific catalog. Predictions are useful as a sanity check, not a guarantee.
+
+---
+
+## Regression checking (preventing accuracy drift)
+
+After ANY change to `verify.py`, `extract.py`, prompts, or vocab files, run the regression check before pushing:
+
+```bash
+python -m buysheet_v2.tools.verify_all
+```
+
+This re-runs the semantic oracle on every cached `*.v2.cards.json` sidecar under `files/`, compares per-vendor per-cell accuracy to the checked-in baseline (`tests/baseline_accuracy.json`), and exits non-zero if any vendor regressed by more than 0.5 percentage points.
+
+Sample output:
+
+```
+vendor          cards  per-cell    Δ       contradicted    base
+================================================================================
+adidas_premium    346   94.74%   +0.00pp   2.03%        94.74%
+converse_ho26      15   74.83%   +0.00pp   6.29%        74.83%
+nike_ho26         110   96.66%   +0.00pp   1.52%        96.66%
+
+[verify-all] all vendors at or above baseline (tolerance 0.5pp)
+```
+
+If a change is a real improvement, lock in the new baseline:
+
+```bash
+python -m buysheet_v2.tools.verify_all --update-baseline
+```
+
+The baseline records the git HEAD sha + timestamp + full per-field breakdown for traceability.
+
+### When to run regression checks
+
+- **Before pushing any change** to verify.py, extract.py, prompts, or vocab files
+- **After running auto-enrich on a new vendor** (sometimes new descriptions shift cached classifications)
+- **Before changing the oracle's confidence model or thresholds**
+- **After upgrading the Anthropic SDK** (model behavior can shift)
 
 ---
 

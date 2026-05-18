@@ -1,0 +1,218 @@
+{
+  "_meta": {
+    "git_head": "c2de76d",
+    "last_updated": "2026-05-18T13:35:34.407437Z"
+  },
+  "vendors": {
+    "adidas_premium": {
+      "cards": 346,
+      "cards_contradicted": 50,
+      "cards_partial": 57,
+      "cards_perfect": 239,
+      "contradicted_pct": 2.03,
+      "per_cell_pct": 94.74,
+      "per_field": {
+        "brand": {
+          "contradicted": 0,
+          "correct": 346,
+          "rate_pct": 100.0,
+          "total": 346
+        },
+        "color": {
+          "contradicted": 39,
+          "correct": 296,
+          "rate_pct": 85.5,
+          "total": 346
+        },
+        "description": {
+          "contradicted": 0,
+          "correct": 335,
+          "rate_pct": 96.8,
+          "total": 346
+        },
+        "intro_date": {
+          "contradicted": 24,
+          "correct": 279,
+          "rate_pct": 88.9,
+          "total": 314
+        },
+        "mg": {
+          "contradicted": 0,
+          "correct": 320,
+          "rate_pct": 100.0,
+          "total": 320
+        },
+        "sg": {
+          "contradicted": 0,
+          "correct": 346,
+          "rate_pct": 100.0,
+          "total": 346
+        },
+        "sku": {
+          "contradicted": 0,
+          "correct": 335,
+          "rate_pct": 96.8,
+          "total": 346
+        },
+        "ssg": {
+          "contradicted": 0,
+          "correct": 346,
+          "rate_pct": 100.0,
+          "total": 346
+        },
+        "standard_color": {
+          "contradicted": 4,
+          "correct": 223,
+          "rate_pct": 76.9,
+          "total": 290
+        },
+        "usd_cost": {
+          "contradicted": 0,
+          "correct": 306,
+          "rate_pct": 100.0,
+          "total": 306
+        }
+      }
+    },
+    "converse_ho26": {
+      "cards": 15,
+      "cards_contradicted": 7,
+      "cards_partial": 5,
+      "cards_perfect": 3,
+      "contradicted_pct": 6.29,
+      "per_cell_pct": 74.83,
+      "per_field": {
+        "brand": {
+          "contradicted": 0,
+          "correct": 15,
+          "rate_pct": 100.0,
+          "total": 15
+        },
+        "color": {
+          "contradicted": 0,
+          "correct": 11,
+          "rate_pct": 73.3,
+          "total": 15
+        },
+        "description": {
+          "contradicted": 5,
+          "correct": 6,
+          "rate_pct": 40.0,
+          "total": 15
+        },
+        "intro_date": {
+          "contradicted": 0,
+          "correct": 10,
+          "rate_pct": 71.4,
+          "total": 14
+        },
+        "sg": {
+          "contradicted": 0,
+          "correct": 15,
+          "rate_pct": 100.0,
+          "total": 15
+        },
+        "sku": {
+          "contradicted": 0,
+          "correct": 11,
+          "rate_pct": 73.3,
+          "total": 15
+        },
+        "ssg": {
+          "contradicted": 0,
+          "correct": 12,
+          "rate_pct": 100.0,
+          "total": 12
+        },
+        "standard_color": {
+          "contradicted": 2,
+          "correct": 9,
+          "rate_pct": 64.3,
+          "total": 14
+        },
+        "usd_cost": {
+          "contradicted": 1,
+          "correct": 9,
+          "rate_pct": 64.3,
+          "total": 14
+        },
+        "usd_retail": {
+          "contradicted": 1,
+          "correct": 9,
+          "rate_pct": 64.3,
+          "total": 14
+        }
+      }
+    },
+    "nike_ho26": {
+      "cards": 110,
+      "cards_contradicted": 12,
+      "cards_partial": 18,
+      "cards_perfect": 80,
+      "contradicted_pct": 1.52,
+      "per_cell_pct": 96.66,
+      "per_field": {
+        "brand": {
+          "contradicted": 0,
+          "correct": 66,
+          "rate_pct": 100.0,
+          "total": 66
+        },
+        "color": {
+          "contradicted": 10,
+          "correct": 100,
+          "rate_pct": 90.9,
+          "total": 110
+        },
+        "description": {
+          "contradicted": 2,
+          "correct": 108,
+          "rate_pct": 98.2,
+          "total": 110
+        },
+        "intro_date": {
+          "contradicted": 0,
+          "correct": 89,
+          "rate_pct": 100.0,
+          "total": 89
+        },
+        "mg": {
+          "contradicted": 0,
+          "correct": 106,
+          "rate_pct": 100.0,
+          "total": 106
+        },
+        "sg": {
+          "contradicted": 0,
+          "correct": 110,
+          "rate_pct": 100.0,
+          "total": 110
+        },
+        "sku": {
+          "contradicted": 0,
+          "correct": 110,
+          "rate_pct": 100.0,
+          "total": 110
+        },
+        "ssg": {
+          "contradicted": 0,
+          "correct": 110,
+          "rate_pct": 100.0,
+          "total": 110
+        },
+        "standard_color": {
+          "contradicted": 3,
+          "correct": 68,
+          "rate_pct": 76.4,
+          "total": 89
+        },
+        "usd_cost": {
+          "contradicted": 0,
+          "correct": 89,
+          "rate_pct": 100.0,
+          "total": 89
+        }
+      }
+    }
+  }
+}

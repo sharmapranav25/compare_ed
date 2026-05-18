@@ -62,6 +62,7 @@ def run_pipeline(
     vendor_key: Optional[str] = None,
     client: Optional[anthropic.Anthropic] = None,
     cache_sidecar: bool = True,
+    auto_enrich: bool = True,
     verbose: bool = True,
 ) -> CatalogExtraction:
     """Run the full VLM-first pipeline on a PDF and return a CatalogExtraction.
@@ -156,6 +157,29 @@ def run_pipeline(
             result.pages.append(page_result)
             if verbose:
                 print(f"FAILED: {type(e).__name__}: {e}")
+
+    # Cold-vendor auto-enrich: if any extracted descriptions aren't in the
+    # description_map cache yet, classify them now via one batched Claude call
+    # per ~30 novel descriptions. Persists into vocab/description_map.json so
+    # future runs of any catalog sharing those silhouettes are free.
+    # The enrichment runs BEFORE the oracle so the verification sees the
+    # enriched vocab. Skippable via auto_enrich=False for runs where you don't
+    # want vocab to grow.
+    if auto_enrich:
+        try:
+            from buysheet_v2.tools.enrich_description_map import enrich as _enrich
+            import buysheet_v2.verify as _vmod
+            if verbose:
+                print(f"[pipeline] auto-enriching description vocab for novel SKUs...")
+            # Write current extraction to a temp sidecar so enrich can read it
+            tmp_sidecar = pdf_path.with_suffix("").with_name(f"{pdf_path.stem}.v2.cards.json")
+            tmp_sidecar.write_text(result.model_dump_json(indent=2, exclude_none=False))
+            _enrich([tmp_sidecar])
+            # Invalidate cached vocab so verify picks up the enriched map
+            _vmod._DESCRIPTION_MAP = None
+        except Exception as e:
+            if verbose:
+                print(f"[pipeline] vocab enrichment skipped: {type(e).__name__}: {e}")
 
     # Run the semantic oracle (no API cost — pure source-text verification)
     if verbose:
