@@ -51,6 +51,23 @@ DATA_ROW_START = 10  # template's first SKU row
 
 AMBER_FILL = PatternFill(start_color="FFE5A8", end_color="FFE5A8", fill_type="solid")
 RED_FILL = PatternFill(start_color="F4CCCC", end_color="F4CCCC", fill_type="solid")
+
+# openpyxl rejects ASCII control characters in cell values per the OOXML
+# spec. PyMuPDF / pdfium occasionally leak form-feed (0x0C) or NULL bytes
+# into extracted text when the PDF uses unusual font encodings (Mizuno
+# SS27 page 71: "WAVE MG4 LS \x0cffcSUEDE\x0cffcooter"). Strip the entire
+# class before any value reaches the xlsx so the workbook write doesn't
+# fail an hour into a 90-page extraction. Tab/newline/CR are preserved as
+# legitimate whitespace.
+import re as _re
+_XML_ILLEGAL_RE = _re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def _xml_safe(value):
+    """Strip ASCII control characters from string values; pass-through otherwise."""
+    if isinstance(value, str):
+        return _XML_ILLEGAL_RE.sub("", value)
+    return value
 LOW_CONFIDENCE_THRESHOLD = 0.9      # < this -> amber (review recommended)
 CONTRADICTED_THRESHOLD = 0.05       # <= this -> blank + red (oracle says source contradicts)
 
@@ -128,13 +145,13 @@ def _write_cell(ws, row: int, col: int, value, comment: Optional[str] = None,
     For 'red', `value` is ignored and the cell is left blank.
     """
     cell = ws.cell(row, col)
-    cell.value = None if tier == "red" else value
+    cell.value = None if tier == "red" else _xml_safe(value)
     if tier == "amber":
         cell.fill = AMBER_FILL
     elif tier == "red":
         cell.fill = RED_FILL
     if comment:
-        cell.comment = Comment(comment, "Kith Buysheet Agent v2")
+        cell.comment = Comment(_xml_safe(comment), "Kith Buysheet Agent v2")
 
 
 def _resolve_all_photo_bboxes(
