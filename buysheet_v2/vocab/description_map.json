@@ -94,6 +94,41 @@
     "sg": "Miscellaneous",
     "ssg": "Miscellaneous"
   },
+  "ACG Juniper Trail": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "ACG Kigerfly": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "ACG Pegasus Trail": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "ACG Picklejuice*": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "ACG Ultrafly": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "ACG Vomero Trail": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "ACG Zegama": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
   "ADI SUN W": {
     "confidence": "medium",
     "sg": "Sandals",
@@ -165,6 +200,11 @@
     "ssg": "Running"
   },
   "AIR FORCE 1 '07": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe"
+  },
+  "AIR FORCE 1 '07 BB": {
     "confidence": "high",
     "sg": "Sneakers",
     "ssg": "Causal Shoe"
@@ -1094,6 +1134,41 @@
     "sg": "Shoes",
     "ssg": "Causal Shoe"
   },
+  "M NRG CS HOODIE FLC 2": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "M NRG NOCTA CS CREW FLC": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "M NRG NOCTA CS PANT FLC": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "M NRG NOCTA CS PANT FLC OH": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "M NRG NOCTA CS TEE SS": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "M NRG NOCTA CS TRK JKT WV": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "M NRG NOCTA CS TRK PANT W": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
   "MAFATE SPEED 2 GTX": {
     "confidence": "high",
     "sg": "Sneakers",
@@ -1119,10 +1194,75 @@
     "sg": "Boots",
     "ssg": "Sneakerboot"
   },
+  "MISERY RIDGE 3L UL PULLOVER JKT": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "MISERY RIDGE UL JACKET": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "MISERY RIDGE UL PANT": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "MIZUNO FORTIS LS": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "MIZUNO NEO ACCERA LS": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
   "MLD W": {
     "confidence": "low",
     "sg": "Sneakers",
     "ssg": "Running"
+  },
+  "MORELIA LS \"OG\"": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Court"
+  },
+  "MORELIA LS \"OG\" (CO)": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Court"
+  },
+  "MORELIA LS \"PATENT LEATHER\"": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Court"
+  },
+  "MORELIA LS \"PATENT\"": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Court"
+  },
+  "MORELIA LS \"SUEDE\"": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Court"
+  },
+  "MORELIA LS \"\\nOG\"": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Court"
+  },
+  "MORELIA LS \"\\teau\\nSUEDE\"": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Court"
+  },
+  "MORELIA LS \\": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Court"
   },
   "MOSSY OAK": {
     "confidence": "low",
@@ -1133,6 +1273,31 @@
     "confidence": "low",
     "sg": "Sneakers",
     "ssg": "Running"
+  },
+  "MXR": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe"
+  },
+  "MXR \"\"),": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe"
+  },
+  "MXR \"DENTELLE\"": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe"
+  },
+  "MXR \"SUEDE\"": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe"
+  },
+  "MXR \\": {
+    "confidence": "low",
+    "sg": "Sneakers",
+    "ssg": "Causal Shoe"
   },
   "Marla": {
     "confidence": "low",
@@ -1339,6 +1504,11 @@
     "sg": "Miscellaneous",
     "ssg": "Miscellaneous"
   },
+  "Nike Air Foamposite One": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Basketball"
+  },
   "No. 11 Black/Gray": {
     "confidence": "low",
     "sg": "Miscellaneous",
@@ -1527,6 +1697,11 @@
   "Propet \u2014 Shield Walker": {
     "confidence": "medium",
     "sg": "Shoes",
+    "ssg": "Modern Comfort"
+  },
+  "REJUVEN8SNKR SP27": {
+    "confidence": "low",
+    "sg": "Sneakers",
     "ssg": "Modern Comfort"
   },
   "RESTORE TC": {
@@ -1914,6 +2089,16 @@
     "sg": "Shoes",
     "ssg": "Modern Comfort"
   },
+  "U NK ED ELVTD CREW 3P- NOCTACS": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
+  "U NRG CLUB CAP NOCTA-USCB": {
+    "confidence": "high",
+    "sg": "Miscellaneous",
+    "ssg": "Miscellaneous"
+  },
   "ULTRA 2": {
     "confidence": "medium",
     "sg": "Sneakers",
@@ -1983,6 +2168,11 @@
     "confidence": "high",
     "sg": "Sneakers",
     "ssg": "Causal Shoe"
+  },
+  "W FOAMPOSITE ONE": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Basketball"
   },
   "W NIKE AIR MAX MOTO 2K JDW": {
     "confidence": "medium",
@@ -2081,6 +2271,86 @@
   },
   "W SPRINT SISTER 2026 NA16": {
     "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE CREATION 11": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE CREATION 8": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE MG4 LS": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE MG4 LS \fffcSUEDE\fffcooter": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE MG4 LS \"SUEDE\"": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE MG4 LS \"SUEDE'": {
+    "confidence": "medium",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE PROPHECY 1": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE PROPHECY 13.2": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE PROPHECY LS": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE PROPHECY LS OPEN MESH": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE PROPHECY STRAP 2": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE RIDER 10": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE RIDER 10 \"PATENT LEATHER\"": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE RIDER 10 \"SUEDE\"": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE RIDER 10 TL": {
+    "confidence": "high",
+    "sg": "Sneakers",
+    "ssg": "Running"
+  },
+  "WAVE RIDER 10 \\'": {
+    "confidence": "high",
     "sg": "Sneakers",
     "ssg": "Running"
   },
