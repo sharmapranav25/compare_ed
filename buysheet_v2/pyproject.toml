@@ -20,6 +20,7 @@ dependencies = [
     "google-auth>=2.30",
     "google-auth-httplib2>=0.2",
     "google-auth-oauthlib>=1.2",
+    "ultralytics>=8.3.0",
 ]
 
 [project.scripts]

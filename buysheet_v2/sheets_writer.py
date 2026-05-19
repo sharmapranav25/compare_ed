@@ -534,6 +534,27 @@ def write_extraction_to_sheet(
     _flush_batch(all_format_requests, "tier-formatting")
     _flush_batch(all_note_requests, "cell-notes")
 
+    # Explicit row heights so embedded photos render without vertical clipping.
+    # The xlsx template's row dimensions don't always survive the
+    # drive.files.copy round-trip cleanly; force every data row to a height
+    # tall enough to comfortably fit a w200 thumbnail at preserved aspect.
+    row_height_requests = [
+        {
+            "updateDimensionProperties": {
+                "range": {
+                    "sheetId": tab_id,
+                    "dimension": "ROWS",
+                    "startIndex": DATA_ROW_START - 1,  # 0-indexed
+                    "endIndex": MAX_ROW,
+                },
+                "properties": {"pixelSize": 90},
+                "fields": "pixelSize",
+            }
+        }
+        for _label, _cards, tab_id in tabs_to_write
+    ]
+    _flush_batch(row_height_requests, "row-heights")
+
     # Images: separate pass (Drive uploads + IMAGE() formula writes)
     embedded = 0
     if embed_photos and pdf_path is not None:
@@ -592,27 +613,37 @@ def _embed_photos_via_drive(
             h = int(round(page.get_height() * scale))
             page_dims[page_no] = (w, h)
 
-        # Two-stage photo-bbox resolution — MATCHES xlsx writer (write.py).
-        # Stage 1: photo_vlm primary (per-card VLM, tight + correctly-anchored
-        #          bboxes; sidecar-cached so cost is ~$0 on re-runs).
-        # Stage 2: phototune fallback for SKUs photo_vlm couldn't resolve
-        #          (image-only pages, transient API failures after retry).
-        # Without stage 1, photos are drawn from phototune-only bboxes which
-        # often drift into neighboring cards (the Hoka misalignment bug).
+        # Photo-bbox resolution — matches xlsx writer's cascade.
+        # Stage 1: YOLO+matcher (preferred). pipeline.py overwrites
+        #   card.photo_bbox_px with a YOLO bbox when YOLO ran. Detect via
+        #   presence of <pdf>.v2.yolo.json sidecar.
+        # Stage 2: photo_vlm LEGACY fallback when YOLO sidecar absent.
+        # Stage 3: phototune deterministic fallback for SKUs neither
+        #   stage resolved (image-only pages).
         resolved: dict[tuple[int, str], tuple[int, int, int, int]] = {}
-        try:
-            from buysheet_v2.photo_vlm import resolve_catalog_photo_bboxes
-            vlm_resolved, vlm_usage = resolve_catalog_photo_bboxes(
-                pdf_path, extraction, page_dims,
-            )
-            resolved.update(vlm_resolved)
-            log.info("photo_vlm resolved %d bboxes (%d fresh VLM calls)",
-                     len(vlm_resolved), vlm_usage["calls"])
-        except Exception as e:
-            log.warning("photo_vlm failed catalog-wide (%s: %s); "
-                        "phototune fallback only", type(e).__name__, e)
-        # Stage 2: phototune for any SKU stage 1 didn't resolve. setdefault
-        # so we never overwrite a VLM-resolved bbox with a looser heuristic one.
+        yolo_sidecar = pdf_path.with_suffix("").with_name(f"{pdf_path.stem}.v2.yolo.json")
+        if yolo_sidecar.exists():
+            yolo_count = 0
+            for card in extraction.all_cards:
+                if card.photo_bbox_px:
+                    resolved[(card.page, card.sku)] = tuple(card.photo_bbox_px)
+                    yolo_count += 1
+            log.info("using YOLO+matcher bboxes from card.photo_bbox_px "
+                     "(%d/%d cards)", yolo_count, len(extraction.all_cards))
+        else:
+            try:
+                from buysheet_v2.photo_vlm import resolve_catalog_photo_bboxes
+                vlm_resolved, vlm_usage = resolve_catalog_photo_bboxes(
+                    pdf_path, extraction, page_dims,
+                )
+                resolved.update(vlm_resolved)
+                log.info("LEGACY photo_vlm resolved %d bboxes (%d fresh VLM calls)",
+                         len(vlm_resolved), vlm_usage["calls"])
+            except Exception as e:
+                log.warning("photo_vlm failed catalog-wide (%s: %s); "
+                            "phototune fallback only", type(e).__name__, e)
+        # Phototune fallback for any SKU previous stage didn't resolve.
+        # setdefault so we never overwrite a YOLO or VLM bbox.
         for pe in extraction.pages:
             dims = page_dims.get(pe.page)
             if not dims:
@@ -656,10 +687,13 @@ def _embed_photos_via_drive(
                     continue
                 # Use the thumbnail URL form so Sheets renders the inline image
                 # without requiring the viewer to be authed to Drive directly.
+                # Mode `1` is explicit "resize to fit cell, preserve aspect" —
+                # without it, some Sheets configurations render the image at
+                # original size and clip to the row height (the cut-off bug).
                 image_url = f"https://drive.google.com/thumbnail?id={file_id}&sz=w200"
                 image_value_data.append({
                     "range": f"'{tab_title}'!{_cell_a1(COL['photo'], row)}",
-                    "values": [[f'=IMAGE("{image_url}")']],
+                    "values": [[f'=IMAGE("{image_url}", 1)']],
                 })
                 embedded += 1
 

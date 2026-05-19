@@ -38,6 +38,8 @@ from buysheet_v2.schemas.extraction_result import (
     CatalogExtraction, PageExtraction,
 )
 from buysheet_v2.verify import oracle_summary, verify_catalog
+from buysheet_v2 import yolo_detect
+from buysheet_v2.photo_match import match_skus_to_bboxes, pick_yolo_density
 
 SONNET_IN_PER_MTOK = 3.0
 SONNET_OUT_PER_MTOK = 15.0
@@ -133,6 +135,32 @@ def run_pipeline(
           f"Layout: {layout.layout_type}"
           + (" · multi-brand catalog" if layout.is_multi_brand else " · single-brand"))
 
+    # Step 1.5: YOLO pre-pass (serial, ~5-15s/page). Detects every shoe on
+    # every page + renders an annotated PNG with red numbered boxes for the
+    # matcher to use. Caches to <pdf>.v2.yolo.json so re-runs cost $0 (only
+    # the Sonnet density picker re-runs without cache, ~$0.005/page).
+    yolo_detections: dict[int, dict] = {}
+    if yolo_detect.is_available():
+        if verbose:
+            print(f"[pipeline] YOLO pre-pass on {doc.page_count} pages...")
+        density_picker = lambda p: pick_yolo_density(p, client=client)  # noqa: E731
+        try:
+            yolo_detections = yolo_detect.run_detect_prepass(
+                doc.pages, sidecar_dir=pdf_path.parent,
+                pdf_stem=pdf_path.stem, density_picker=density_picker,
+            )
+            total_shoes = sum(len(d["bboxes"]) for d in yolo_detections.values())
+            if verbose:
+                print(f"  -> detected {total_shoes} shoes across "
+                      f"{len(yolo_detections)} pages")
+        except Exception as e:
+            if verbose:
+                print(f"  -> YOLO pre-pass FAILED ({type(e).__name__}: {e}) — "
+                      f"falling back to legacy photo_vlm path")
+            yolo_detections = {}
+        _emit("detect", 0.07,
+              f"Detected shoes on {len(yolo_detections)} pages via YOLO")
+
     # Step 2/3: per-page card detection + extraction (Sonnet, 2 calls per page)
     # Per-page work is the dominant wall-clock cost; map it into [0.05, 0.95]
     # so the bot's 25/50/75 thresholds land naturally inside the extract loop.
@@ -174,6 +202,30 @@ def run_pipeline(
                 e_usage["input_tokens"], e_usage["output_tokens"], e_usage["cache_read_tokens"],
             )
 
+            # YOLO photo-bbox matcher: if we have YOLO detections for this
+            # page, ask Sonnet to match each extracted SKU to its numbered box
+            # on the annotated page. Overwrite card.photo_bbox_px with the
+            # matched bbox (which is much tighter + correctly-anchored than
+            # the VLM's own photo_bbox_px from extract.py).
+            page_det = yolo_detections.get(page.page_no, {})
+            yolo_bboxes = page_det.get("bboxes") or []
+            annotated_path = page_det.get("annotated_path")
+            matched_count = 0
+            if yolo_bboxes and annotated_path and extracted:
+                try:
+                    matched = match_skus_to_bboxes(
+                        Path(annotated_path), extracted, yolo_bboxes,
+                        client=client,
+                    )
+                    for card in extracted:
+                        bbox = matched.get(card.sku)
+                        if bbox:
+                            card.photo_bbox_px = list(bbox)
+                            matched_count += 1
+                except Exception as e:
+                    if verbose:
+                        print(f" matcher_FAILED({type(e).__name__})", end="")
+
             page_result = PageExtraction(
                 page=page.page_no, cards=extracted, page_text=page.text,
             )
@@ -185,7 +237,9 @@ def run_pipeline(
                 retry = e_usage.get("retry_count", 0)
                 recovered = e_usage.get("retry_recovered", 0)
                 retry_s = f"  retry={recovered}/{retry}" if retry else ""
-                print(f"detect={len(cards)}  extract={len(extracted)}  "
+                yolo_s = (f"  yolo={matched_count}/{len(extracted)}"
+                          if yolo_bboxes else "")
+                print(f"detect={len(cards)}  extract={len(extracted)}{yolo_s}  "
                       f"stop={stop}{retry_s}  $${result.cost_usd:.3f}")
         except Exception as e:
             page_result = PageExtraction(page=page.page_no, error=str(e))

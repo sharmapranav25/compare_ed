@@ -263,30 +263,44 @@ def write_workbook(
             h = int(round(page.get_height() * scale))
             page_dims[page_no] = (w, h)
 
-    # Photo-bbox resolution (two-stage), only when embed_photos is set:
-    #   1. photo_vlm.resolve_catalog_photo_bboxes — per-card VLM extraction
-    #      with SKU-marker annotation. Sidecar-cached so re-runs of write.py
-    #      cost $0. ~$0.003/SKU when fresh.
-    #   2. phototune.resolve_page_photo_bboxes — deterministic heuristic
-    #      (PyMuPDF SKU anchor + row-context geometry). Used as fallback for
-    #      any SKU the per-card VLM couldn't resolve (image-only pages,
-    #      transient VLM failures).
-    # When embed_photos=False (Slack-bot default), col A is left empty and the
-    # workbook ships as the validated text-only v1 deliverable.
+    # Photo-bbox resolution. Three paths in priority order:
+    #   1. YOLO + matcher (preferred, ran in pipeline.py). card.photo_bbox_px
+    #      has been overwritten by the matcher with a YOLO bbox if YOLO ran
+    #      successfully for that SKU. Detect this by checking for the
+    #      <pdf_stem>.v2.yolo.json sidecar.
+    #   2. photo_vlm.resolve_catalog_photo_bboxes — LEGACY per-card VLM
+    #      fallback. Only invoked when the YOLO sidecar is absent (e.g.
+    #      ultralytics not installed, weights missing, pre-YOLO sidecars).
+    #   3. phototune.resolve_page_photo_bboxes — deterministic geometric
+    #      fallback for SKUs neither YOLO nor photo_vlm resolved.
+    # When embed_photos=False (Slack-bot default), col A is left empty.
     resolved_photo: dict[tuple[int, str], tuple[int, int, int, int]] = {}
+    yolo_sidecar = (pdf_path.with_suffix("").with_name(f"{pdf_path.stem}.v2.yolo.json")
+                    if pdf_path else None)
+    yolo_ran = yolo_sidecar is not None and yolo_sidecar.exists()
     if embed_photos and pdf_path is not None:
-        from buysheet_v2.photo_vlm import resolve_catalog_photo_bboxes  # noqa: E402
-        try:
-            vlm_resolved, vlm_usage = resolve_catalog_photo_bboxes(
-                pdf_path, extraction, page_dims,
-            )
-            resolved_photo.update(vlm_resolved)
-            print(f"[write] photo_vlm resolved {len(vlm_resolved)} bboxes  "
-                  f"({vlm_usage['calls']} fresh VLM calls)")
-        except Exception as e:
-            print(f"[write] photo_vlm failed: {type(e).__name__}: {e}; "
-                  f"falling back to heuristic only")
-        # Heuristic fallback for SKUs the VLM didn't resolve
+        if yolo_ran:
+            # Use card.photo_bbox_px set by pipeline.py's matcher.
+            yolo_count = 0
+            for card in extraction.all_cards:
+                if card.photo_bbox_px:
+                    resolved_photo[(card.page, card.sku)] = tuple(card.photo_bbox_px)
+                    yolo_count += 1
+            print(f"[write] using YOLO+matcher bboxes from card.photo_bbox_px  "
+                  f"({yolo_count}/{len(extraction.all_cards)} cards)")
+        else:
+            from buysheet_v2.photo_vlm import resolve_catalog_photo_bboxes  # noqa: E402
+            try:
+                vlm_resolved, vlm_usage = resolve_catalog_photo_bboxes(
+                    pdf_path, extraction, page_dims,
+                )
+                resolved_photo.update(vlm_resolved)
+                print(f"[write] LEGACY photo_vlm resolved {len(vlm_resolved)} bboxes  "
+                      f"({vlm_usage['calls']} fresh VLM calls)")
+            except Exception as e:
+                print(f"[write] photo_vlm failed: {type(e).__name__}: {e}; "
+                      f"falling back to heuristic only")
+        # Stage 3 fallback (phototune) — fills any SKU stage 1/2 didn't resolve.
         heuristic = _resolve_all_photo_bboxes(pdf_path, extraction, page_dims)
         for key, bbox in heuristic.items():
             resolved_photo.setdefault(key, bbox)
