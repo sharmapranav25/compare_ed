@@ -1,7 +1,7 @@
 {
   "_meta": {
     "git_head": "c2de76d",
-    "last_updated": "2026-05-18T16:23:30.636778+00:00"
+    "last_updated": "2026-05-19T00:17:00.730132+00:00"
   },
   "vendors": {
     "adidas_premium": {
@@ -76,11 +76,11 @@
     },
     "converse_ho26": {
       "cards": 15,
-      "cards_contradicted": 7,
+      "cards_contradicted": 3,
       "cards_partial": 5,
-      "cards_perfect": 3,
-      "contradicted_pct": 6.29,
-      "per_cell_pct": 74.83,
+      "cards_perfect": 7,
+      "contradicted_pct": 2.8,
+      "per_cell_pct": 78.32,
       "per_field": {
         "brand": {
           "contradicted": 0,
@@ -95,9 +95,9 @@
           "total": 15
         },
         "description": {
-          "contradicted": 5,
-          "correct": 6,
-          "rate_pct": 40.0,
+          "contradicted": 0,
+          "correct": 11,
+          "rate_pct": 73.3,
           "total": 15
         },
         "intro_date": {

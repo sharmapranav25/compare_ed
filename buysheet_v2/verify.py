@@ -407,6 +407,15 @@ def verify_card(
             if section is not None and _value_in_region(val, section):
                 per_field[f] = 0.7
                 per_field_source[f] = "sibling_section_shared"
+            elif _value_in_region(val, page_text):
+                # Page-level fallback: Mizuno-style lookbooks where the
+                # description appears in a page header but the SKU formatting
+                # is loose enough that sibling-prefix grouping doesn't apply
+                # (e.g. SKUs `590170.907G` and `D1GA272A01` on the same page
+                # both belong to a "WAVE RIDER 10" section header). Accept at
+                # amber confidence so the value is still flagged for review.
+                per_field[f] = 0.7
+                per_field_source[f] = "page_level_description"
             else:
                 per_field[f] = 0.0
                 per_field_source[f] = "vlm_contradicts_source"

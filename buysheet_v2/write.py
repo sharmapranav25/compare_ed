@@ -52,21 +52,41 @@ DATA_ROW_START = 10  # template's first SKU row
 AMBER_FILL = PatternFill(start_color="FFE5A8", end_color="FFE5A8", fill_type="solid")
 RED_FILL = PatternFill(start_color="F4CCCC", end_color="F4CCCC", fill_type="solid")
 
-# openpyxl rejects ASCII control characters in cell values per the OOXML
-# spec. PyMuPDF / pdfium occasionally leak form-feed (0x0C) or NULL bytes
-# into extracted text when the PDF uses unusual font encodings (Mizuno
-# SS27 page 71: "WAVE MG4 LS \x0cffcSUEDE\x0cffcooter"). Strip the entire
-# class before any value reaches the xlsx so the workbook write doesn't
-# fail an hour into a 90-page extraction. Tab/newline/CR are preserved as
-# legitimate whitespace.
+# Defensive cell-value sanitisation. Two classes of artifact get cleaned:
+#
+# 1) XML-illegal ASCII control characters. openpyxl strictly rejects these
+#    per the OOXML spec. PyMuPDF / pdfium occasionally leak form-feed (0x0C)
+#    or NULL bytes into extracted text when the PDF uses unusual font
+#    encodings (Mizuno SS27 p71: "WAVE MG4 LS \x0cffcSUEDE\x0cffcooter").
+#    If we don't strip them, the workbook write crashes 11 minutes into a
+#    90-page extraction.
+#
+# 2) Cosmetic text rendering artifacts that aren't XML-illegal but render
+#    as garbage in Excel: embedded tabs/newlines inside what should be a
+#    one-line description (Mizuno: 'MORELIA LS "\teau\nSUEDE"'), trailing
+#    backslashes from broken escape sequences, runs of multiple spaces from
+#    PDF column gaps. These don't crash the writer but they make cells look
+#    broken to the buyer.
 import re as _re
 _XML_ILLEGAL_RE = _re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+_INLINE_WHITESPACE_RE = _re.compile(r"[\t\n\r]+")
+_MULTISPACE_RE = _re.compile(r"  +")
 
 
 def _xml_safe(value):
-    """Strip ASCII control characters from string values; pass-through otherwise."""
-    if isinstance(value, str):
-        return _XML_ILLEGAL_RE.sub("", value)
+    """Sanitise PDF text artifacts so the cell renders cleanly in Excel.
+
+    Strips XML-illegal control chars (mandatory for write to succeed) and
+    smooths tab/newline runs to single spaces (cosmetic — keeps cells from
+    looking visually broken). Trailing backslashes from incomplete escape
+    sequences are also removed. Non-string values pass through unchanged.
+    """
+    if not isinstance(value, str):
+        return value
+    value = _XML_ILLEGAL_RE.sub("", value)
+    value = _INLINE_WHITESPACE_RE.sub(" ", value)
+    value = _MULTISPACE_RE.sub(" ", value)
+    value = value.strip(" \\")
     return value
 LOW_CONFIDENCE_THRESHOLD = 0.9      # < this -> amber (review recommended)
 CONTRADICTED_THRESHOLD = 0.05       # <= this -> blank + red (oracle says source contradicts)

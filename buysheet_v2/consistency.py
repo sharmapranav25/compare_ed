@@ -108,6 +108,62 @@ def normalize_extraction(cards: list[ProductCard]) -> dict[str, int]:
     return dict(counts)
 
 
+# Real vendor SKUs we've seen across catalogs:
+#   Nike:    JA1013-010, IX7257-133, IZ4702-235
+#   Adidas:  KI1913, KJ4910, A-KJ1887
+#   Hoka:    1110518-BBLC, 1181663-SMLP
+#   Mizuno:  590164.909H, D1GA272A01, 590170.907G
+#   APEX:    X826W, X532W
+# Common shape: alphanumeric tokens, contain ≥2 digits, no spaces, length 4-20.
+#
+# Model-invented fake SKUs we saw on Mizuno page 38 / 77:
+#   MXR-DENTELLE-PINK, MXR-SUEDE-GREY, MXR-GREY1, MXR-WHITE-BLUE
+#   WAVE PROPHECY LS OPEN MESH, N/A, WAVE RIDER 10
+# These are slugified product names the model fabricated when no real SKU
+# code was visible on the page. They have <2 digits, contain spaces, or
+# are literal "N/A". A buyer can't track a product without a real SKU, so
+# we filter these cards out of the workbook entirely.
+
+_INVALID_SKU_LITERALS = {"N/A", "NA", "TBD", "TBC", "UNKNOWN", ""}
+
+
+def is_plausible_sku(sku: str) -> bool:
+    """Heuristic: does this look like a real vendor SKU code?
+
+    Conservative — only rejects values that are clearly NOT a SKU. False
+    positives in the "plausible" direction (keeping a borderline value) are
+    preferred over rejecting real SKUs that happen to look unusual.
+    """
+    if not sku:
+        return False
+    s = sku.strip()
+    if s.upper() in _INVALID_SKU_LITERALS:
+        return False
+    if " " in s:  # real SKUs never have spaces
+        return False
+    if len(s) < 3 or len(s) > 28:  # outside typical vendor SKU range
+        return False
+    digit_count = sum(1 for c in s if c.isdigit())
+    if digit_count < 2:  # real SKUs almost always have ≥2 digits
+        return False
+    return True
+
+
+def drop_invalid_sku_cards(cards: list[ProductCard]) -> tuple[list[ProductCard], int]:
+    """Filter out cards whose SKU clearly isn't a real vendor code.
+
+    Returns (surviving_cards, drop_count).
+    """
+    keep = []
+    drop_count = 0
+    for c in cards:
+        if is_plausible_sku(c.sku):
+            keep.append(c)
+        else:
+            drop_count += 1
+    return keep, drop_count
+
+
 # --- Deterministic source-text backfill --------------------------------------
 #
 # The VLM occasionally skips fields for some siblings in a dense repeating

@@ -285,11 +285,24 @@ def run_pipeline(
                   f"agree={ag} ({100*ag/max(1,total):.1f}%)  "
                   f"disagree={ds}  asymmetric={asym}")
 
+    # Drop cards whose SKU clearly isn't a real vendor code. The VLM
+    # sometimes fabricates slugified product names as SKUs on lookbook pages
+    # where no real SKU is visible (Mizuno: "MXR-DENTELLE-PINK",
+    # "WAVE PROPHECY LS OPEN MESH", "N/A"). A buyer can't track a product
+    # without a real SKU, so these cards don't belong in the buy sheet.
+    from buysheet_v2.consistency import (
+        deterministic_fill, drop_invalid_sku_cards, normalize_extraction,
+    )
+    for pe in result.pages:
+        survivors, dropped = drop_invalid_sku_cards(pe.cards)
+        pe.cards = survivors
+        if dropped and verbose:
+            print(f"[pipeline] page {pe.page}: dropped {dropped} cards with invalid SKUs")
+
     # Apply card-level normalizations before scoring (e.g. demote VLM's
     # K-Footwear guesses to M-Footwear when there's no kids evidence in the
     # description or SKU). Mutates cards in place so the oracle sees the
     # corrected values and the xlsx writes the corrected defaults.
-    from buysheet_v2.consistency import deterministic_fill, normalize_extraction
     fix_counts = normalize_extraction(result.all_cards)
     if verbose and fix_counts:
         print(f"[pipeline] card normalizations: {fix_counts}")
