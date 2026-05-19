@@ -53,7 +53,11 @@ import fitz
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _render import ImageTooLargeError, render_page_png_safe  # noqa: E402
+from _render import (  # noqa: E402
+    ImageTooLargeError, find_cached_render, media_type_for, render_page_safe,
+)
+from analysis.usage import usage_from_response  # noqa: E402
+from deterministic_check.verify import verify_against_text_layer  # noqa: E402
 
 load_dotenv()
 
@@ -144,13 +148,13 @@ Cover every string exactly once. Echo each string verbatim — do not
 canonicalize, normalize whitespace, or change casing."""
 
 
-def png_to_b64_block(png_path: Path) -> dict:
+def image_to_b64_block(path: Path) -> dict:
     return {
         "type": "image",
         "source": {
             "type": "base64",
-            "media_type": "image/png",
-            "data": base64.standard_b64encode(png_path.read_bytes()).decode(),
+            "media_type": media_type_for(path),
+            "data": base64.standard_b64encode(path.read_bytes()).decode(),
         },
     }
 
@@ -176,10 +180,10 @@ def context_block(prev_context: dict) -> str:
             f"  current section: {section}")
 
 
-def extract_page(client: anthropic.Anthropic, model: str, png_path: Path,
-                 prev_context: dict) -> list[dict]:
-    """Stage 1 — VLM full extract. Returns the list of candidate products
-    with all fields (sku/description/color/cost/retail/intro_date/gender_hint).
+def extract_page(client: anthropic.Anthropic, model: str, image_path: Path,
+                 prev_context: dict) -> tuple[list[dict], dict]:
+    """Stage 1 — VLM full extract. Returns (candidates, usage). Candidates
+    have all fields (sku/description/color/cost/retail/intro_date/gender_hint).
     These are CANDIDATES; the text-only validator in stage 2 filters them."""
     resp = client.messages.create(
         model=model,
@@ -188,16 +192,17 @@ def extract_page(client: anthropic.Anthropic, model: str, png_path: Path,
         messages=[{
             "role": "user",
             "content": [
-                png_to_b64_block(png_path),
+                image_to_b64_block(image_path),
                 {"type": "text", "text": context_block(prev_context)},
                 {"type": "text", "text": "Extract every product on this page. Return JSON only."},
             ],
         }],
     )
+    usage = usage_from_response(resp, model)
     parsed = parse_llm_json(resp.content[0].text)
     products = parsed.get("products", [])
     if not isinstance(products, list):
-        return []
+        return [], usage
     cleaned: list[dict] = []
     for p in products:
         if not isinstance(p, dict):
@@ -211,24 +216,26 @@ def extract_page(client: anthropic.Anthropic, model: str, png_path: Path,
             "intro_date": p.get("intro_date"),
             "gender_hint": p.get("gender_hint"),
         })
-    return cleaned
+    return cleaned, usage
 
 
 def validate_skus(client: anthropic.Anthropic, candidates: list[dict]
-                  ) -> tuple[list[dict], list[dict]]:
+                  ) -> tuple[list[dict], list[dict], dict | None]:
     """Stage 2 — text-only LLM. Given the candidate products from stage 1,
     look ONLY at the SKU strings and decide which look like real SKUs.
 
-    Returns (kept, rejected) where:
+    Returns (kept, rejected, usage) where:
       kept     — products whose SKU passed validation (unchanged shape)
       rejected — products whose SKU was flagged as not-a-SKU, augmented
                  with a `reason` string for debugging
+      usage    — token usage dict (or None when no API call was made,
+                 e.g. all-empty SKU list)
 
     Single Sonnet call, no image. Cheap (~$0.005 / page).
     """
     sku_strings = [str(c.get("sku") or "") for c in candidates]
     if not any(sku_strings):
-        return [], []
+        return [], [], None
     body = "Strings to validate:\n" + "\n".join(
         f"  - {s if s else '<empty>'}" for s in sku_strings
     )
@@ -238,15 +245,16 @@ def validate_skus(client: anthropic.Anthropic, candidates: list[dict]
         system=SKU_VALIDATE_SYSTEM,
         messages=[{"role": "user", "content": body}],
     )
+    usage = usage_from_response(resp, MODEL_SONNET)
     try:
         parsed = parse_llm_json(resp.content[0].text)
     except json.JSONDecodeError:
         # Validator failed — fall back to keeping everything (don't drop
         # extracted products on a validator hiccup).
-        return list(candidates), []
+        return list(candidates), [], usage
     raw = parsed.get("results", [])
     if not isinstance(raw, list):
-        return list(candidates), []
+        return list(candidates), [], usage
     # Map verdict by sku string. The validator should echo verbatim, but
     # build a forgiving lookup anyway.
     verdict: dict[str, dict] = {}
@@ -268,19 +276,23 @@ def validate_skus(client: anthropic.Anthropic, candidates: list[dict]
             entry = dict(c)
             entry["reason"] = v.get("reason") or "rejected by sku validator"
             rejected.append(entry)
-    return kept, rejected
+    return kept, rejected, usage
 
 
 _pdf_lock = threading.Lock()  # PyMuPDF is not thread-safe; serialize renders
 
 
-def ensure_png(pdf: fitz.Document, page_no: int, png_path: Path) -> None:
-    """Render the PNG if it doesn't exist yet (or render failed earlier).
-    Raises ImageTooLargeError on failure — caller marks the page."""
-    if png_path.exists() and png_path.stat().st_size > 0:
-        return
+def ensure_page_image(pdf: fitz.Document, page_no: int,
+                      pages_dir: Path) -> Path:
+    """Return the path to a rendered page image — cached if present,
+    freshly rendered if not. Adaptive: PNG first, JPEG fallback for
+    photo-heavy pages PNG can't compress. Raises ImageTooLargeError if
+    no encoder strategy fits."""
+    cached = find_cached_render(pages_dir, page_no)
+    if cached is not None:
+        return cached
     with _pdf_lock:
-        render_page_png_safe(pdf, page_no, png_path)
+        return render_page_safe(pdf, page_no, pages_dir)
 
 
 def process_page(client: anthropic.Anthropic, model: str,
@@ -288,7 +300,6 @@ def process_page(client: anthropic.Anthropic, model: str,
                  pages_dir: Path, force: bool) -> dict:
     """Returns a dict with {page_no, status, n_products, error?} for the summary."""
     json_path = pages_dir / f"{page_no:02d}.json"
-    png_path = pages_dir / f"{page_no:02d}.png"
     if not json_path.exists():
         return {"page_no": page_no, "status": "skip",
                 "reason": "no classify json", "n_products": 0}
@@ -301,7 +312,7 @@ def process_page(client: anthropic.Anthropic, model: str,
         return {"page_no": page_no, "status": "cached", "n_products": n}
 
     try:
-        ensure_png(pdf, page_no, png_path)
+        image_path = ensure_page_image(pdf, page_no, pages_dir)
     except ImageTooLargeError as exc:
         record["error"] = f"image_too_large: {exc}"
         record.pop("products", None)
@@ -314,16 +325,47 @@ def process_page(client: anthropic.Anthropic, model: str,
 
     # Stage 1 — VLM full extract (candidate products with all fields).
     try:
-        candidates = extract_page(client, model, png_path, prev_context)
+        candidates, extract_usage = extract_page(client, model, image_path, prev_context)
     except Exception as exc:  # noqa: BLE001
         record["error"] = f"extract_failed: {type(exc).__name__}: {exc}"
         json_path.write_text(json.dumps(record, indent=2))
         return {"page_no": page_no, "status": "error",
                 "error": str(exc), "n_products": 0}
 
-    # Stage 2 — text-only SKU validator (filters false-positive SKUs).
+    record["n_candidates"] = len(candidates)
+    existing_usage = record.get("usage") or {}
+    existing_usage["extract"] = extract_usage
+    record["usage"] = existing_usage
+
+    # Deterministic text-layer verification — substring-match every
+    # VLM-emitted field against the PDF text layer. text_layer_present
+    # is False when PyMuPDF raises or the canon'd text is empty; in that
+    # case we fall through to today's Stage 2 LLM validator.
+    kept, dropped, text_layer_present, text_layer_error = verify_against_text_layer(
+        candidates, pdf, page_no, _pdf_lock,
+    )
+    record["text_layer_present"] = text_layer_present
+    if text_layer_error:
+        record["text_layer_error"] = text_layer_error
+    else:
+        record.pop("text_layer_error", None)
+
+    if text_layer_present:
+        record.pop("error", None)
+        record.pop("sku_hint", None)       # legacy field
+        record.pop("candidates", None)     # legacy field from prior refactor
+        record["products"] = kept
+        record["rejected_candidates"] = dropped
+        # No Stage 2 call on the deterministic path.
+        record["usage"]["validate"] = None
+        json_path.write_text(json.dumps(record, indent=2))
+        return {"page_no": page_no, "status": "ok",
+                "n_products": len(kept), "n_candidates": len(candidates),
+                "n_rejected": len(dropped), "path": "deterministic"}
+
+    # Stage 2 fallback — text-only SKU validator (filters false-positive SKUs).
     try:
-        products, rejected = validate_skus(client, candidates)
+        products, rejected, validate_usage = validate_skus(client, candidates)
     except Exception as exc:  # noqa: BLE001
         # Don't lose stage 1 work on a validator hiccup — keep all candidates.
         record["error"] = f"validate_skus_failed: {type(exc).__name__}: {exc}"
@@ -333,15 +375,19 @@ def process_page(client: anthropic.Anthropic, model: str,
         return {"page_no": page_no, "status": "error",
                 "error": str(exc), "n_products": len(candidates)}
 
+    for r in rejected:
+        r["stage"] = "llm_validator"
+
     record.pop("error", None)
     record.pop("sku_hint", None)       # legacy field
     record.pop("candidates", None)     # legacy field from prior refactor
     record["products"] = products
     record["rejected_candidates"] = rejected
+    record["usage"]["validate"] = validate_usage
     json_path.write_text(json.dumps(record, indent=2))
     return {"page_no": page_no, "status": "ok",
             "n_products": len(products), "n_candidates": len(candidates),
-            "n_rejected": len(rejected)}
+            "n_rejected": len(rejected), "path": "llm_validator"}
 
 
 def extract_pdf(pdf_path: Path, only_page: int | None, force: bool,
@@ -391,8 +437,9 @@ def _log_page_result(res: dict) -> None:
         n_p = res["n_products"]
         n_c = res.get("n_candidates", 0)
         n_r = res.get("n_rejected", 0)
-        print(f"  page {p:02d}: {n_p} products ({n_c} candidates, {n_r} rejected)",
-              file=sys.stderr)
+        path = res.get("path", "?")
+        print(f"  page {p:02d}: {n_p} products ({n_c} candidates, "
+              f"{n_r} rejected, path={path})", file=sys.stderr)
     elif s == "cached":
         print(f"  page {p:02d}: cached ({res['n_products']} products)", file=sys.stderr)
     elif s == "skip":

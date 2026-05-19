@@ -1,65 +1,97 @@
 # compare_ed — agentic per-page buy-sheet pipeline
 
-A self-contained agentic pipeline that converts a multi-vendor shoe buy-sheet
-PDF into a filled `BUYSHEET_<vendor>.xlsx`. One PDF → three commands → one
-spreadsheet. Two VLM calls per product page (extract + validate); one
-text-only LLM call per unique dropdown cell, with on-disk caching that makes
-re-runs effectively free.
+A self-contained agentic pipeline that converts vendor wholesale shoe
+buy-sheet documents into a filled `BUYSHEET_<vendor>.xlsx`. Single-doc
+path: one PDF → three commands → one spreadsheet. Multi-doc path: N
+docs (PDF + Excel) → one merged spreadsheet, with per-field priority
+following CLI order.
 
-## Pipeline (3 commands or 1)
+One Opus VLM call per product page for visual extract; an Anthropic
+text-layer check via PyMuPDF replaces a second LLM call when the PDF
+has readable text; one Sonnet call per unique dropdown cell with
+on-disk caching that makes re-runs effectively free.
+
+## Pipeline (one CLI for everything)
 
 ```bash
-# One-shot
-python run_pipeline.py <pdf>
-python run_pipeline.py <pdf> --workers 8 --model opus
-python run_pipeline.py <pdf> --skip classify extract     # rebuild xlsx only
+# Single doc (the trivial N=1 case)
+python run_pipeline.py <doc.pdf>
+python run_pipeline.py <doc.pdf> --workers 8 --model opus
+python run_pipeline.py <doc.pdf> --skip-analysis
 
-# Or step by step
+# Multiple docs (priority = left-to-right argument order)
+python run_pipeline.py <doc1.pdf> <doc2.xlsx> [...] [--vendor NAME]
+
+# Step by step (debugging single-doc internals)
 python classify_pages.py  <pdf>
 python extract_products.py <pdf>
 python build_buysheet.py   <pdf> --out BUYSHEET_<vendor>.xlsx
 ```
 
-Each step is resumable: a crash leaves prior page JSONs intact and reruns
-skip what's already done. `--force` re-runs.
+`run_pipeline.py` is a thin shim that delegates to `worker.run_multi`
+— same effect as `python -m worker.run_multi <args>`, kept under the
+familiar name. Each step is resumable: a crash leaves prior page JSONs
+intact and reruns skip what's already done. `--force` re-runs. See
+[worker.md](worker.md) for the design.
 
-## What each file does
+## What each file / folder does
 
-| File | Role |
+| File / Folder | Role |
 |---|---|
-| `_render.py` | Shared PDF→PNG render with the 3.6 MB Anthropic image-size guard (75% downscale per pass, up to 4 passes). Used by classify + extract. |
+| `_render.py` | Shared PDF→image renderer with byte cap (3.6 MB) AND dimension cap (8000 px) for Anthropic image limits. **Adaptive encoder**: tries `ENCODE_STRATEGIES` (PNG → JPEG-q85 today) in order, downscaling 75% per pass × 4 passes within each strategy. PNG-friendly catalog pages stay PNG; photo-heavy decks (1920×1080 presentation slides) fall through to JPEG. Returns the actual saved path; caller derives the API `media_type` from the suffix via `media_type_for()`. Cached files in either format short-circuit re-render. Used by classify + extract. |
 | `classify_pages.py` | **Step 1.** For every page: render → Sonnet vision → one of `category` / `brand_name` / `product` / `index_or_other` / `unknown`. On `category`, captures the section name; on `brand_name`, the vendor. Propagates a running `prev_context` (vendor, current_section) into each page's JSON. Parallel LLM calls; serial context fold. |
-| `extract_products.py` | **Step 2.** For each `product`-labelled page, a two-stage pass:<br>**Stage 1 — Opus visual extract (recall):** finds every distinct product on the page, returning sku + description + color + cost + retail + intro_date + gender_hint.<br>**Stage 2 — Sonnet text-only validator (precision):** given just the SKU strings (no image), drops obvious false positives (prices, sizes, section headers mis-classified as SKUs). Per-page JSON gets `products` (kept) + `rejected_candidates` (debug). |
-| `vocab_map.py` | LLM-driven vendor wording → closed dropdown vocab. One Sonnet call per unique `(field, key)`, returning `{value, confidence}`. Three-branch policy in the caller:<br>• `confidence=low` → cell empty<br>• `value` matched → write canonical (orange fill)<br>• `value` null + raw present → write raw vendor value (overrides dropdown). Cache persisted at `cache/<field>.json`. |
-| `build_buysheet.py` | **Step 3.** Reads every `<doc>.pages/<NN>.json`, walks in page order, runs `vocab_map.map_to_dropdown` per dropdown cell (deduped + parallel, openpyxl write serial), produces `BUYSHEET_<vendor>.xlsx`. Pages with errors / 0 products get yellow STYLE# tinting + a row in the REVIEW sheet. |
-| `run_pipeline.py` | One-command orchestrator. Imports each step's function, sequential. `--skip {classify,extract,build}` for partial re-runs. |
+| `extract_products.py` | **Step 2.** For each `product`-labelled page: Stage 1 Opus visual extract (recall) → deterministic text-layer verify → Stage 2 Sonnet text-only SKU validator if and only if the text-layer check could not run (image-only PDF, PyMuPDF failure, or empty text). On the deterministic path, every VLM field is substring-matched against the PDF text layer; SKU mismatches drop the row, price mismatches null the value, description/color/intro mismatches set `verification: "unverified"`. |
+| `vocab_map.py` | LLM-driven vendor wording → closed dropdown vocab. One Sonnet call per unique `(field, key)`, returning `{value, confidence}`. Three-branch caller policy:<br>• `confidence=low` → cell empty<br>• `value` matched → write canonical (orange fill)<br>• `value` null + raw present → write raw vendor value (overrides dropdown). Cache persisted at `cache/<field>.json`. |
+| `build_buysheet.py` | **Step 3.** Reads every `<doc>.pages/<NN>.json`, walks in page order, runs `vocab_map.map_to_dropdown` per dropdown cell (deduped + parallel, openpyxl write serial), produces `BUYSHEET_<vendor>.xlsx`. Pages with errors / 0 products / verification issues / missing text layer get yellow STYLE# tinting + a row in the REVIEW sheet. |
 | `probe_products.py` | Standalone single-page Opus probe. Not in the pipeline — kept for prompt iteration / one-off testing. |
+| [`deterministic_check/`](deterministic_check/) | `verify.py` — text-layer substring verifier. Sits between extract Stage 1 and Stage 2, dropping VLM hallucinations against the PDF's embedded text stream. Per-field policy: sku miss → drop row; cost/retail miss → null value; description/color/intro miss → keep + mark `unverified`. |
+| `run_pipeline.py` | User-facing CLI shim. Delegates to `worker.run_multi.main()` — kept under the familiar name so muscle memory still works. |
+| [`analysis/`](analysis/) | `fill_rate.py` — pure-local report (no LLM) over a finished `.pages/`. Counts kept-vs-candidates, drop breakdown by stage, per-field fill rate, verification flag counts, plus rolled-up LLM spend by step. `usage.py` — token + cost accounting helpers used by every step. Run by the worker automatically (suppress with `--skip-analysis`). |
+| [`worker/`](worker/) | **The single source of truth for the pipeline.** Handles both single-doc and multi-doc inputs uniformly (N=1 is the trivial case). Per-format adapters in `formats/`; `merge.py` joins by canonicalized SKU with first-non-empty-wins per field in priority order; `build_merged.py` reuses `build_buysheet` helpers without modifying it. Invoked via `run_pipeline.py` or directly via `python -m worker.run_multi`. Full design in [worker.md](worker.md). |
 
-## Storage layout per PDF
+## Storage layout per doc
 
-The pipeline creates a sibling `.pages/` directory next to the input PDF:
+The pipeline creates a sibling `.pages/` directory next to each input doc:
 
 ```
-<pdf-stem>.pages/
+<doc-stem>.pages/
   01.png    01.json    ← classify writes label + prev/context_after
-  02.png    02.json    ← extract appends `products` + `rejected_candidates`
-  ...
+  02.png    02.json    ← extract appends products, rejected_candidates,
+  ...                    text_layer_present, verification dicts, usage
+  _build_usage.json    ← vocab_map token accounting (written by build)
 ```
 
-JSON shape per page:
+Excel docs (via the worker) skip the PNG, write a single synthetic
+`00.json` with `page_no: 0`, `label: "product"`, and every product
+field tagged `verification: "deterministic"`.
+
+JSON shape per product page:
 ```json
 {
   "page_no": 7,
   "label": "product",
-  "prev_context": {"vendor": "CONVERSE", "current_section": "UNISEX"},
+  "prev_context":  {"vendor": "CONVERSE", "current_section": "UNISEX"},
   "context_after": {"vendor": "CONVERSE", "current_section": "UNISEX"},
+  "text_layer_present": true,
+  "n_candidates": 2,
+  "usage": {"classify": {...}, "extract": {...}, "validate": null},
   "products": [
-    {"sku": "A24021 C", "description": "JACK PURCELL", "color": "...",
-     "cost": null, "retail": "...", "intro_date": null, "gender_hint": "..."}
+    {
+      "sku": "A24021 C", "description": "JACK PURCELL", "color": "...",
+      "cost": "WHSLE: $64.44", "retail": "MSRP: $120.00",
+      "intro_date": "Sep-15", "gender_hint": "GENDER: UNISEX",
+      "verification": {"sku":"ok","cost":"ok","retail":"ok",
+                       "description":"ok","color":"ok","intro_date":"ok"}
+    }
   ],
   "rejected_candidates": []
 }
 ```
+
+`verification` markers: `"ok"` = substring matched the text layer;
+`"unverified"` = VLM said it, text layer didn't (kept anyway);
+`"not_in_text_layer"` = field was cleared (price-only policy);
+`"deterministic"` = sourced from Excel via openpyxl (no VLM involved).
 
 ## Cell-fill policy
 
@@ -76,39 +108,59 @@ JSON shape per page:
 | **V USD Cost** | extracted `cost` | parsed to number; non-numeric → raw |
 | **W USD Retail** | extracted `retail` | parsed to number; non-numeric → raw |
 
-For every dropdown cell, vocab_map decides: confident match → canonical (orange fill marks LLM-resolved); confident "nothing fits" → raw vendor value verbatim (overrides the dropdown); low confidence → leave empty.
+For every dropdown cell, vocab_map decides: confident match → canonical
+(orange fill marks LLM-resolved); confident "nothing fits" → raw vendor
+value verbatim (overrides the dropdown); low confidence → leave empty.
 
-## Why two VLM calls per product page
+## Two paths through extract (deterministic-first)
 
-A single extract call has to do visual scanning AND structuring at once,
-which leaks recall on dense / off-pattern layouts. Splitting recall
-(Stage 1 Opus visual extract) from precision (Stage 2 Sonnet text-only
-validator) lets each stage focus. The validator never adds SKUs the VLM
-missed — it can only drop false positives the VLM included.
+Per product page, the flow is:
 
-Cost per page (Opus 4.7 extract + Sonnet 4.6 validator):
-~$0.10–0.25 / dense product page, ~$0.005 for the validator.
+```
+PDF page → render PNG → Stage 1 Opus visual extract (always)
+                                ↓
+                deterministic_check.verify_against_text_layer
+                                ↓
+        ┌──────────── text layer present? ────────────┐
+        │ YES (digital PDF, Excel-derived PDF)        │ NO (scanned, OCR garbage, PyMuPDF raises)
+        ↓                                             ↓
+   per-field substring match,                    Stage 2 Sonnet text-only SKU validator
+   keep / null / mark unverified                 drops obvious non-SKUs (prices, sizes, headers)
+```
+
+The verifier replaces the Stage 2 LLM call on the deterministic path,
+so most pages cost one Opus call (~$0.10–0.25 / dense page); only
+scanned PDFs and OCR-garbage pages fall through to Sonnet (~$0.005).
+The verifier never adds SKUs — it can only filter or null what the VLM
+produced.
 
 ## What this repo does NOT include
 
-This was extracted from a larger 5-phase pipeline. The standalone copy
-omits:
-
-- `BUYSHEET_template.xlsx` — currently referenced by `build_buysheet.py`
-  via `REPO_ROOT / "BUYSHEET_template.xlsx"`. You need to drop a copy in
-  the project root one level up, or edit `TEMPLATE_PATH` to point at your
-  copy. The template's `Product Data` sheet is read at runtime — that's
-  where the dropdown vocabs come from.
+- `BUYSHEET_template.xlsx` — referenced by `build_buysheet.py` via
+  `REPO_ROOT.parent / "BUYSHEET_template.xlsx"` (one directory above
+  this repo). Supply your own, or edit `TEMPLATE_PATH`. The template's
+  `Product Data` sheet supplies the dropdown vocabs at runtime.
 - The legacy `phase1/` → `phase5/` deterministic pipeline (kept in the
-  original repo for back-compat; not used here).
+  original sibling repo for back-compat; not used here).
+- The cross-job scheduler layer — a future orchestrator that would
+  dispatch many `worker.run_multi` runs across a worker pool for
+  multi-tenant use. Today's worker is per-job only; design rules in
+  [worker.md](worker.md) keep that future extension trivial to add.
+- Auto-priority advisor for multi-doc input (one cheap LLM probe per
+  doc → priority ranking + per-field overrides) — designed in
+  [worker.md](worker.md) under "deferred", not implemented.
+- PPTX adapter (LibreOffice convert → existing PDF path). Convert
+  externally for now and feed the resulting PDF to the worker.
 
 ## Caching
 
 `cache/<field>.json` files are keyed by lowercase normalized "primary
-signal" (description, color, date text). Cross-vendor cache hits save
-real money — adidas describing "STAN SMITH" populates the same key
-nike's catalog might also hit. Don't delete unless you specifically want
-fresh LLM calls.
+signal" (description, color, date text). Cross-doc, cross-vendor cache
+hits save real money — adidas describing "STAN SMITH" populates the
+same key nike's catalog might also hit. The worker's sequential-across-
+docs default warms this cache between docs in one run; that's why
+parallel-across-docs is opt-in. Don't delete unless you specifically
+want fresh LLM calls.
 
 ## Tweak surface
 
@@ -117,8 +169,14 @@ fresh LLM calls.
   `SKU_VALIDATE_SYSTEM` in `extract_products.py`, `SYSTEM` in
   `vocab_map.py`. Edit in place, no other code knows.
 - **Models** — `MODEL` constants at the top of each file. `--model opus|sonnet`
-  on `extract_products.py` for the Stage 1 visual extract.
+  on `extract_products.py` and `worker.run_multi` for the Stage 1 visual extract.
 - **Worker count** — `--workers N` on every step (default 5).
-- **Failure handling** — pages that error get an `error: "..."` field in
-  their JSON. `build_buysheet.py` flags them in the xlsx (yellow STYLE#
-  + REVIEW sheet).
+- **Excel header synonyms** — extend `SYNONYMS` in
+  [worker/formats/excel_adapter.py](worker/formats/excel_adapter.py).
+- **Merge priority** — left-to-right CLI arg order to `worker.run_multi`.
+  Per-field overrides (a doc winning specific fields regardless of
+  position) require the deferred manifest layer.
+- **Failure handling** — pages that error get an `error: "..."` field
+  in their JSON. `build_buysheet.py` flags them in the xlsx (yellow
+  STYLE# + REVIEW sheet). The worker's REVIEW sheet adds a `source`
+  column so multi-doc flags tell you which input file owns the issue.

@@ -37,6 +37,9 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from analysis.usage import usage_from_response  # noqa: E402
+
 load_dotenv()
 
 MODEL = "claude-sonnet-4-6"
@@ -109,16 +112,26 @@ def save_cache(field: str, cache: dict) -> None:
 
 
 def _parse_json(raw: str) -> dict:
+    """Tolerant: never raises. Returns {} on any parse failure so the
+    caller's downstream logic treats the response as low-confidence
+    (cell-empty) instead of crashing the whole build's thread pool."""
     raw = raw.strip()
-    if raw.startswith("{"):
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            pass
-    s, e = raw.find("{"), raw.rfind("}")
-    if s != -1 and e > s:
-        return json.loads(raw[s:e + 1])
-    return {}
+    try:
+        result = json.loads(raw)
+        return result if isinstance(result, dict) else {}
+    except json.JSONDecodeError:
+        pass
+    s = raw.find("{")
+    if s == -1:
+        return {}
+    # raw_decode parses one JSON object and ignores trailing junk —
+    # handles the case where Sonnet returns {valid}{garbage} despite
+    # "JSON only" in the prompt.
+    try:
+        obj, _end = json.JSONDecoder().raw_decode(raw[s:])
+        return obj if isinstance(obj, dict) else {}
+    except json.JSONDecodeError:
+        return {}
 
 
 def _format_signals(signals: dict) -> str:
@@ -177,6 +190,7 @@ def map_to_dropdown(
                  "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
+    usage = usage_from_response(resp, MODEL)
     parsed = _parse_json(resp.content[0].text)
     value = parsed.get("value")
     confidence = parsed.get("confidence", "low")
@@ -192,6 +206,7 @@ def map_to_dropdown(
         cache[norm_key] = result
     out = dict(result)
     out["source"] = "llm"
+    out["usage"] = usage
     return out
 
 
