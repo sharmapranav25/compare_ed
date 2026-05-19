@@ -43,7 +43,10 @@ import fitz
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _render import ImageTooLargeError, render_page_png_safe  # noqa: E402
+from _render import (  # noqa: E402
+    ImageTooLargeError, find_cached_render, media_type_for, render_page_safe,
+)
+from analysis.usage import usage_from_response  # noqa: E402
 
 load_dotenv()
 
@@ -80,13 +83,13 @@ Required output fields by label:
 Return EXACTLY one JSON object. No prose, no code fences."""
 
 
-def png_to_b64_block(png_path: Path) -> dict:
+def image_to_b64_block(path: Path) -> dict:
     return {
         "type": "image",
         "source": {
             "type": "base64",
-            "media_type": "image/png",
-            "data": base64.standard_b64encode(png_path.read_bytes()).decode(),
+            "media_type": media_type_for(path),
+            "data": base64.standard_b64encode(path.read_bytes()).decode(),
         },
     }
 
@@ -104,7 +107,7 @@ def parse_llm_json(raw: str) -> dict:
     raise json.JSONDecodeError("no JSON object found", raw, 0)
 
 
-def classify_page(client: anthropic.Anthropic, png_path: Path) -> dict:
+def classify_page(client: anthropic.Anthropic, image_path: Path) -> tuple[dict, dict]:
     resp = client.messages.create(
         model=MODEL,
         max_tokens=256,
@@ -112,7 +115,7 @@ def classify_page(client: anthropic.Anthropic, png_path: Path) -> dict:
         messages=[{
             "role": "user",
             "content": [
-                png_to_b64_block(png_path),
+                image_to_b64_block(image_path),
                 {"type": "text", "text": "Classify this page. Return the JSON."},
             ],
         }],
@@ -130,7 +133,7 @@ def classify_page(client: anthropic.Anthropic, png_path: Path) -> dict:
         brand = parsed.get("brand")
         if isinstance(brand, str) and brand.strip():
             out["brand"] = brand.strip()
-    return out
+    return out, usage_from_response(resp, MODEL)
 
 
 def apply_context_update(prev: dict, page_info: dict) -> dict:
@@ -151,7 +154,6 @@ def classify_one_page(client: anthropic.Anthropic, pdf: fitz.Document,
       {"page_no": N, "page_info": {label, ...}, "error": str|None}
     Skips the API call if a JSON record already exists and --force is off."""
     json_path = pages_dir / f"{page_no:02d}.json"
-    png_path = pages_dir / f"{page_no:02d}.png"
     if json_path.exists() and not force:
         existing = json.loads(json_path.read_text())
         # Recover the page_info needed for context fold without an API call
@@ -161,17 +163,19 @@ def classify_one_page(client: anthropic.Anthropic, pdf: fitz.Document,
                 page_info[k] = existing[k]
         return {"page_no": page_no, "page_info": page_info,
                 "error": existing.get("error"), "cached": True}
+    image_path = find_cached_render(pages_dir, page_no)
+    if image_path is None:
+        try:
+            with _pdf_lock:
+                image_path = render_page_safe(pdf, page_no, pages_dir)
+        except ImageTooLargeError as exc:
+            return {"page_no": page_no,
+                    "page_info": {"label": "unknown"},
+                    "error": f"image_too_large: {exc}", "cached": False}
     try:
-        with _pdf_lock:
-            render_page_png_safe(pdf, page_no, png_path)
-    except ImageTooLargeError as exc:
-        return {"page_no": page_no,
-                "page_info": {"label": "unknown"},
-                "error": f"image_too_large: {exc}", "cached": False}
-    try:
-        page_info = classify_page(client, png_path)
+        page_info, usage = classify_page(client, image_path)
         return {"page_no": page_no, "page_info": page_info,
-                "error": None, "cached": False}
+                "error": None, "cached": False, "usage": usage}
     except Exception as exc:  # noqa: BLE001
         return {"page_no": page_no,
                 "page_info": {"label": "unknown"},
@@ -180,7 +184,7 @@ def classify_one_page(client: anthropic.Anthropic, pdf: fitz.Document,
 
 def _write_page_json(pages_dir: Path, page_no: int, page_info: dict,
                      prev_context: dict, context_after: dict,
-                     error: str | None) -> None:
+                     error: str | None, usage: dict | None = None) -> None:
     record = {
         "page_no": page_no,
         **page_info,
@@ -189,6 +193,8 @@ def _write_page_json(pages_dir: Path, page_no: int, page_info: dict,
     }
     if error:
         record["error"] = error
+    if usage:
+        record["usage"] = {"classify": usage}
     (pages_dir / f"{page_no:02d}.json").write_text(json.dumps(record, indent=2))
 
 
@@ -211,7 +217,8 @@ def fold_and_write(results: list[dict], pages_dir: Path) -> None:
         context_after = apply_context_update(prev_context, r["page_info"])
         if not r["cached"]:
             _write_page_json(pages_dir, r["page_no"], r["page_info"],
-                             prev_context, context_after, r["error"])
+                             prev_context, context_after, r["error"],
+                             usage=r.get("usage"))
         prev_context = context_after
 
 
@@ -279,7 +286,8 @@ def classify_pdf(pdf_path: Path, only_page: int | None, force: bool,
                 prev_context = _read_prev_context(pages_dir, r["page_no"])
                 context_after = apply_context_update(prev_context, r["page_info"])
                 _write_page_json(pages_dir, r["page_no"], r["page_info"],
-                                 prev_context, context_after, r["error"])
+                                 prev_context, context_after, r["error"],
+                                 usage=r.get("usage"))
         pdf.close()
     _print_summary(results, pages_dir)
 

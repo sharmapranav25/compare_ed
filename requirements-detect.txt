@@ -1,0 +1,15 @@
+# Optional footwear-detection extras. Adds ~2 GB of torch + cuda runtime.
+# Only needed if you want crop thumbnails in BUYSHEET column A.
+#
+# Install AFTER requirements.txt:
+#   pip install -r requirements-detect.txt
+#
+# On first use, ultralytics auto-downloads yolov8s-worldv2.pt (~25 MB)
+# to the current working directory. Move it to <repo>/models/ or set
+# the DETECT_WEIGHTS env var to point at it:
+#   mv yolov8s-worldv2.pt models/
+#   export DETECT_WEIGHTS=models/yolov8s-worldv2.pt
+
+-r requirements.txt
+
+ultralytics>=8.3.0

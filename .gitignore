@@ -6,3 +6,11 @@ __pycache__/
 cache/
 *.pages/
 probes/
+analysis/*.json
+# Vendor source PDFs / Excel and pipeline outputs — too large for git, often
+# vendor-proprietary. Keep the runtime data outside source control.
+tests/
+files/
+BUYSHEET_*.xlsx
+# Local YOLO weights — user-supplied, often hundreds of MB.
+models/

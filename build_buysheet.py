@@ -46,9 +46,14 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 from openpyxl import load_workbook
+from openpyxl.drawing.image import Image as XLImage
+from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
+from openpyxl.drawing.xdr import XDRPositiveSize2D
 from openpyxl.styles import PatternFill
+from openpyxl.utils.units import pixels_to_EMU
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from analysis.usage import add_usage, empty_usage  # noqa: E402
 from vocab_map import load_cache, map_to_dropdown, save_cache  # noqa: E402
 
 load_dotenv()
@@ -63,6 +68,7 @@ REVIEW_SHEET_NAME = "REVIEW"
 
 # buy-sheet column letters for the fields we populate
 COL = {
+    "image":           "A",
     "sku":             "B",
     "mg":              "C",
     "sg":              "D",
@@ -74,6 +80,12 @@ COL = {
     "cost":            "V",
     "retail":          "W",
 }
+
+# Image-column geometry. row height is in points (openpyxl convention);
+# col width is in "characters" (openpyxl convention, ~7px per unit).
+IMAGE_TARGET_PX     = 128
+IMAGE_ROW_HEIGHT_PT = 100
+IMAGE_COL_WIDTH     = 20
 
 # which xlsx field names use which dropdown column in Product Data
 DROPDOWN_FIELDS = {
@@ -104,12 +116,44 @@ def load_dropdown_vocabs(template: Path) -> dict[str, list[str]]:
     return vocabs
 
 
+_VERIFICATION_LABEL = {
+    "sku":         ("SKUs dropped",       "deterministic"),
+    "cost":        ("costs cleared",      "not_in_text_layer"),
+    "retail":      ("retails cleared",    "not_in_text_layer"),
+    "description": ("descriptions unverified", "unverified"),
+    "color":       ("colors unverified",  "unverified"),
+    "intro_date":  ("intro dates unverified", "unverified"),
+}
+
+
+def _verification_summary(rec: dict) -> str:
+    """Compact 'N x, M y' summary of verification issues on one page."""
+    parts: list[str] = []
+    if rec.get("text_layer_present") is False:
+        cause = rec.get("text_layer_error") or "text_layer_absent"
+        parts.append(cause)
+    rejected = rec.get("rejected_candidates") or []
+    n_det = sum(1 for r in rejected if r.get("stage") == "deterministic")
+    if n_det:
+        parts.append(f"{n_det} {_VERIFICATION_LABEL['sku'][0]}")
+    products = rec.get("products") or []
+    for field, (label, expected) in _VERIFICATION_LABEL.items():
+        if field == "sku":
+            continue
+        n = sum(1 for p in products
+                if (p.get("verification") or {}).get(field) == expected)
+        if n:
+            parts.append(f"{n} {label}")
+    return "; ".join(parts)
+
+
 def collect_pages(pdf_path: Path) -> tuple[list[dict], list[dict], str | None]:
     """Walk <doc>.pages/*.json in page order. Returns:
        (products_rows, page_records, vendor)
 
     products_rows: [{page_no, context, product, page_flagged}]
-    page_records:  [{page_no, label, error, n_products, flagged}] for every page
+    page_records:  [{page_no, label, error, n_products, flagged,
+                     verification_issues}] for every page
     vendor: first non-empty vendor seen in any context_after
     """
     pages_dir = pdf_path.with_name(pdf_path.stem + ".pages")
@@ -129,13 +173,19 @@ def collect_pages(pdf_path: Path) -> tuple[list[dict], list[dict], str | None]:
         if ctx.get("vendor") and not vendor:
             vendor = ctx["vendor"]
         products = rec.get("products") or []
+        verification_issues = _verification_summary(rec)
         # flag: page errored, OR page was classified as product but no
-        # products extracted (and the page wasn't marked unknown for another
-        # reason). Helps the reviewer find dropouts.
-        flagged = bool(error) or (label == "product" and not products)
+        # products extracted, OR PyMuPDF couldn't read the text layer, OR
+        # any verification marker is non-"ok". Helps the reviewer find
+        # dropouts and unverified fields.
+        flagged = (bool(error)
+                   or (label == "product" and not products)
+                   or rec.get("text_layer_present") is False
+                   or bool(verification_issues))
         page_records.append({
             "page_no": page_no, "label": label, "error": error,
             "n_products": len(products), "flagged": flagged,
+            "verification_issues": verification_issues,
         })
         for p in products:
             products_rows.append({
@@ -251,6 +301,50 @@ def _write(cell, value, llm_resolved: bool) -> None:
         cell.fill = AI_FILL
 
 
+def _setup_image_column(ws) -> None:
+    """Widen column A and ensure a header label at A<HEADER_ROW>.
+
+    The shipped BUYSHEET template already has "PHOTO" at A9; we leave
+    existing headers alone and only fill in "PHOTO" as a fallback when
+    a custom template lacks one. Width is bumped unconditionally — the
+    default 12-char width is too narrow for a 128px thumbnail.
+    """
+    ws.column_dimensions[COL["image"]].width = IMAGE_COL_WIDTH
+    header_cell = ws[f"{COL['image']}{HEADER_ROW}"]
+    if not header_cell.value:
+        header_cell.value = "PHOTO"
+
+
+def _embed_image(ws, image_path: Path, excel_row: int) -> None:
+    """Anchor an image to a single cell (OneCellAnchor) so it scrolls
+    with the row. Sized in EMU; the row height grows to match the image
+    so the thumbnail fits visually inside the cell bounds.
+
+    OneCellAnchor pins both top-left corner and absolute size — the
+    image stays put when its anchor row moves, but does NOT resize when
+    column/row dimensions change (which is what we want for thumbnails).
+    """
+    img = XLImage(str(image_path))
+    img.width = IMAGE_TARGET_PX
+    img.height = IMAGE_TARGET_PX
+    col_idx = ord(COL["image"]) - ord("A")
+    marker = AnchorMarker(
+        col=col_idx, colOff=pixels_to_EMU(4),
+        row=excel_row - 1, rowOff=pixels_to_EMU(4),
+    )
+    img.anchor = OneCellAnchor(
+        _from=marker,
+        ext=XDRPositiveSize2D(
+            cx=pixels_to_EMU(IMAGE_TARGET_PX),
+            cy=pixels_to_EMU(IMAGE_TARGET_PX),
+        ),
+    )
+    ws.add_image(img)
+    current = ws.row_dimensions[excel_row].height
+    if current is None or current < IMAGE_ROW_HEIGHT_PT:
+        ws.row_dimensions[excel_row].height = IMAGE_ROW_HEIGHT_PT
+
+
 def resolved_value(res: dict, raw_fallback: str | None) -> tuple[object, bool]:
     """Three-branch policy (see docstring at top of file)."""
     if res["confidence"] == "low":
@@ -299,6 +393,16 @@ def write_rows(ws, products_rows: list[dict],
             value, llm = resolved_value(res, raw_fallback)
             _write(ws[f"{COL[col_key]}{excel_row}"], value, llm)
 
+        # Image cell — anchored thumbnail. Silently skips when image_path
+        # is absent (Excel-source rows or pages without detections).
+        img_path = p.get("image_path")
+        if img_path and Path(img_path).exists():
+            try:
+                _embed_image(ws, Path(img_path), excel_row)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  warn: image embed failed for {img_path}: "
+                      f"{type(exc).__name__}: {exc}", file=sys.stderr)
+
         if (i + 1) % 25 == 0 or (i + 1) == len(products_rows):
             print(f"  wrote row {i + 1}/{len(products_rows)}: {sku!r}",
                   file=sys.stderr)
@@ -310,13 +414,14 @@ def write_review_sheet(wb, page_records: list[dict]) -> None:
         del wb[REVIEW_SHEET_NAME]
     flagged = [r for r in page_records if r["flagged"]]
     ws = wb.create_sheet(REVIEW_SHEET_NAME)
-    ws.append(["page_no", "label", "n_products", "error"])
+    ws.append(["page_no", "label", "n_products", "error", "verification_issues"])
     for c in ws[1]:
         c.fill = REVIEW_FILL
     for r in flagged:
-        ws.append([r["page_no"], r["label"], r["n_products"], r["error"] or ""])
+        ws.append([r["page_no"], r["label"], r["n_products"],
+                   r["error"] or "", r.get("verification_issues") or ""])
     if not flagged:
-        ws.append(["(no flagged pages)", "", "", ""])
+        ws.append(["(no flagged pages)", "", "", "", ""])
 
 
 def build(pdf_path: Path, out_path: Path, workers: int) -> None:
@@ -331,10 +436,26 @@ def build(pdf_path: Path, out_path: Path, workers: int) -> None:
     tasks = gather_unique_tasks(products_rows, vocabs)
     resolutions = resolve_all(tasks, caches, client, workers)
 
+    # Aggregate vocab_map usage (each LLM call returns "usage"; cache hits
+    # don't carry one). Write a sidecar JSON the analysis step picks up.
+    build_usage = empty_usage()
+    for res in resolutions.values():
+        u = res.get("usage")
+        if u:
+            add_usage(build_usage, u)
+    pages_dir = pdf_path.with_name(pdf_path.stem + ".pages")
+    if pages_dir.exists():
+        (pages_dir / "_build_usage.json").write_text(
+            json.dumps({"vocab_map": build_usage}, indent=2, sort_keys=True)
+        )
+
     wb = load_workbook(TEMPLATE_PATH)
     ws = wb["TEMPLATE"]
     if vendor:
         ws["B1"] = vendor
+
+    if any(r["product"].get("image_path") for r in products_rows):
+        _setup_image_column(ws)
 
     print(f"writing {len(products_rows)} product rows", file=sys.stderr)
     write_rows(ws, products_rows, resolutions)
@@ -353,9 +474,15 @@ def build(pdf_path: Path, out_path: Path, workers: int) -> None:
     if flagged_count:
         print("Flagged pages (see REVIEW sheet):", file=sys.stderr)
         for r in page_records:
-            if r["flagged"]:
-                detail = r["error"] or f"label={r['label']}, 0 products"
-                print(f"  page {r['page_no']:02d}: {detail}", file=sys.stderr)
+            if not r["flagged"]:
+                continue
+            if r["error"]:
+                detail = r["error"]
+            elif r["label"] == "product" and not r["n_products"]:
+                detail = f"label={r['label']}, 0 products"
+            else:
+                detail = r.get("verification_issues") or f"label={r['label']}"
+            print(f"  page {r['page_no']:02d}: {detail}", file=sys.stderr)
 
 
 def _slugify(s: str) -> str:

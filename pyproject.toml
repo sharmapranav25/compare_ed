@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kithbuysheet"
+version = "0.2.0"
+description = "Agentic per-page vendor buy-sheet pipeline (PDF/Excel -> filled BUYSHEET xlsx)"
+requires-python = ">=3.10"
+readme = "CLAUDE.md"
+dependencies = [
+    "anthropic>=0.40.0",
+    "PyMuPDF>=1.24.0",
+    "openpyxl>=3.1.0",
+    "Pillow>=10.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+# Footwear detection + matcher: pulls torch + cuda runtime (~2 GB).
+# Use only when you want crop thumbnails embedded in the buy-sheet.
+detect = [
+    "ultralytics>=8.3.0",
+]
+
+[project.scripts]
+# Same as `python run_pipeline.py <doc>` / `python -m worker.run_multi <doc>`.
+kithbuysheet = "worker.run_multi:main"
+
+[tool.setuptools]
+# Top-level Python modules that aren't inside a package directory.
+py-modules = [
+    "_render",
+    "build_buysheet",
+    "classify_pages",
+    "extract_products",
+    "probe_products",
+    "run_pipeline",
+    "vocab_map",
+]
+
+[tool.setuptools.packages.find]
+include = ["analysis", "analysis.*", "detect", "detect.*",
+           "deterministic_check", "deterministic_check.*",
+           "worker", "worker.*"]
+exclude = ["tests*", "files*", "cache*", "models*", "probes*"]
