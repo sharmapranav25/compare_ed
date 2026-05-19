@@ -1,8 +1,8 @@
 {
   "vendor_key": "hoka_sp27",
   "vendor_type": "lookbook",
-  "pdf_path": "/Users/edwardionel/buysheet_runs/hoka_spring_2027_pinnacle_+/20260518-143817/HOKA SPRING 2027 PINNACLE +.pdf",
-  "source_sidecar": "/Users/edwardionel/buysheet_runs/hoka_spring_2027_pinnacle_+/20260518-143817/HOKA SPRING 2027 PINNACLE +.v2.cards.json",
+  "pdf_path": "<redacted-local-path>/HOKA SPRING 2027 PINNACLE +.pdf",
+  "source_sidecar": "<redacted-local-path>/HOKA SPRING 2027 PINNACLE +.v2.cards.json",
   "scaffolded_at": "2026-05-18",
   "description": "Scaffolded from HOKA SPRING 2027 PINNACLE +.v2.cards.json (25 SKUs sampled evenly across 176 cards). Each entry has `_verified: false` \u2014 flip to true after manually verifying field values against the source PDF. Eval harness only counts verified entries.",
   "skus": [

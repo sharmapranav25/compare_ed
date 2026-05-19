@@ -30,6 +30,13 @@ from buysheet_v2.lifted.pdf_render import b64_image_block
 from buysheet_v2.schemas.card import CardBbox, ProductCard
 
 MODEL = "claude-sonnet-4-6"
+# Per-token pricing for the supported Anthropic models (in / out per MTok).
+# Used by extract_cards_on_page to compute cost when caller passes a non-default model.
+_MODEL_PRICING = {
+    "claude-sonnet-4-6": (3.0, 15.0),
+    "claude-opus-4-7":   (15.0, 75.0),
+    "claude-haiku-4-5":  (1.0, 5.0),
+}
 MAX_TOKENS = 16384  # 23 cards × ~150 tok/card + overhead fits comfortably under 16k
 
 _PROMPT_PATH = Path(__file__).parent / "prompts" / "card_extract.md"
@@ -82,6 +89,7 @@ def extract_cards_on_page(
     is_multi_brand: bool = False,
     expected_fields: Optional[list[str]] = None,
     catalog_brand: Optional[str] = None,
+    model: str = MODEL,
 ) -> tuple[list[ProductCard], dict]:
     """Extract full ProductCard schema for every detected card on the page.
 
@@ -116,7 +124,7 @@ def extract_cards_on_page(
     )
 
     response = client.messages.parse(
-        model=MODEL,
+        model=model,
         max_tokens=MAX_TOKENS,
         system=[{
             "type": "text",
@@ -178,6 +186,7 @@ def extract_single_card(
     is_multi_brand: bool = False,
     expected_fields: Optional[list[str]] = None,
     catalog_brand: Optional[str] = None,
+    model: str = MODEL,
 ) -> tuple[Optional[ProductCard], dict]:
     """Extract a single card by sending JUST the cropped card image.
 
@@ -209,7 +218,7 @@ def extract_single_card(
     )
 
     response = client.messages.parse(
-        model=MODEL,
+        model=model,
         max_tokens=4096,
         system=[{
             "type": "text",
@@ -271,6 +280,7 @@ def extract_with_retry(
     is_multi_brand: bool = False,
     expected_fields: Optional[list[str]] = None,
     catalog_brand: Optional[str] = None,
+    model: str = MODEL,
 ) -> tuple[list[ProductCard], dict]:
     """Per-page extraction with per-card retry fallback.
 
@@ -286,6 +296,7 @@ def extract_with_retry(
         page, card_bboxes, client=client,
         layout_type=layout_type, is_multi_brand=is_multi_brand,
         expected_fields=expected_fields, catalog_brand=catalog_brand,
+        model=model,
     )
 
     # Identify missing cards by sku_hint
@@ -319,6 +330,7 @@ def extract_with_retry(
                 page, cb, client=client,
                 layout_type=layout_type, is_multi_brand=is_multi_brand,
                 expected_fields=expected_fields, catalog_brand=catalog_brand,
+                model=model,
             )
             total_usage["retry_count"] += 1
             total_usage["input_tokens"] += retry_usage["input_tokens"]
