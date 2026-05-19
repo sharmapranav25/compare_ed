@@ -46,7 +46,11 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 from openpyxl import load_workbook
+from openpyxl.drawing.image import Image as XLImage
+from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
+from openpyxl.drawing.xdr import XDRPositiveSize2D
 from openpyxl.styles import PatternFill
+from openpyxl.utils.units import pixels_to_EMU
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from analysis.usage import add_usage, empty_usage  # noqa: E402
@@ -64,6 +68,7 @@ REVIEW_SHEET_NAME = "REVIEW"
 
 # buy-sheet column letters for the fields we populate
 COL = {
+    "image":           "A",
     "sku":             "B",
     "mg":              "C",
     "sg":              "D",
@@ -75,6 +80,12 @@ COL = {
     "cost":            "V",
     "retail":          "W",
 }
+
+# Image-column geometry. row height is in points (openpyxl convention);
+# col width is in "characters" (openpyxl convention, ~7px per unit).
+IMAGE_TARGET_PX     = 128
+IMAGE_ROW_HEIGHT_PT = 100
+IMAGE_COL_WIDTH     = 20
 
 # which xlsx field names use which dropdown column in Product Data
 DROPDOWN_FIELDS = {
@@ -290,6 +301,50 @@ def _write(cell, value, llm_resolved: bool) -> None:
         cell.fill = AI_FILL
 
 
+def _setup_image_column(ws) -> None:
+    """Widen column A and ensure a header label at A<HEADER_ROW>.
+
+    The shipped BUYSHEET template already has "PHOTO" at A9; we leave
+    existing headers alone and only fill in "PHOTO" as a fallback when
+    a custom template lacks one. Width is bumped unconditionally — the
+    default 12-char width is too narrow for a 128px thumbnail.
+    """
+    ws.column_dimensions[COL["image"]].width = IMAGE_COL_WIDTH
+    header_cell = ws[f"{COL['image']}{HEADER_ROW}"]
+    if not header_cell.value:
+        header_cell.value = "PHOTO"
+
+
+def _embed_image(ws, image_path: Path, excel_row: int) -> None:
+    """Anchor an image to a single cell (OneCellAnchor) so it scrolls
+    with the row. Sized in EMU; the row height grows to match the image
+    so the thumbnail fits visually inside the cell bounds.
+
+    OneCellAnchor pins both top-left corner and absolute size — the
+    image stays put when its anchor row moves, but does NOT resize when
+    column/row dimensions change (which is what we want for thumbnails).
+    """
+    img = XLImage(str(image_path))
+    img.width = IMAGE_TARGET_PX
+    img.height = IMAGE_TARGET_PX
+    col_idx = ord(COL["image"]) - ord("A")
+    marker = AnchorMarker(
+        col=col_idx, colOff=pixels_to_EMU(4),
+        row=excel_row - 1, rowOff=pixels_to_EMU(4),
+    )
+    img.anchor = OneCellAnchor(
+        _from=marker,
+        ext=XDRPositiveSize2D(
+            cx=pixels_to_EMU(IMAGE_TARGET_PX),
+            cy=pixels_to_EMU(IMAGE_TARGET_PX),
+        ),
+    )
+    ws.add_image(img)
+    current = ws.row_dimensions[excel_row].height
+    if current is None or current < IMAGE_ROW_HEIGHT_PT:
+        ws.row_dimensions[excel_row].height = IMAGE_ROW_HEIGHT_PT
+
+
 def resolved_value(res: dict, raw_fallback: str | None) -> tuple[object, bool]:
     """Three-branch policy (see docstring at top of file)."""
     if res["confidence"] == "low":
@@ -337,6 +392,16 @@ def write_rows(ws, products_rows: list[dict],
                 continue
             value, llm = resolved_value(res, raw_fallback)
             _write(ws[f"{COL[col_key]}{excel_row}"], value, llm)
+
+        # Image cell — anchored thumbnail. Silently skips when image_path
+        # is absent (Excel-source rows or pages without detections).
+        img_path = p.get("image_path")
+        if img_path and Path(img_path).exists():
+            try:
+                _embed_image(ws, Path(img_path), excel_row)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  warn: image embed failed for {img_path}: "
+                      f"{type(exc).__name__}: {exc}", file=sys.stderr)
 
         if (i + 1) % 25 == 0 or (i + 1) == len(products_rows):
             print(f"  wrote row {i + 1}/{len(products_rows)}: {sku!r}",
@@ -388,6 +453,9 @@ def build(pdf_path: Path, out_path: Path, workers: int) -> None:
     ws = wb["TEMPLATE"]
     if vendor:
         ws["B1"] = vendor
+
+    if any(r["product"].get("image_path") for r in products_rows):
+        _setup_image_column(ws)
 
     print(f"writing {len(products_rows)} product rows", file=sys.stderr)
     write_rows(ws, products_rows, resolutions)

@@ -31,6 +31,7 @@ from build_buysheet import (  # noqa: E402
     REVIEW_FILL,
     REVIEW_SHEET_NAME,
     TEMPLATE_PATH,
+    _setup_image_column,
     gather_unique_tasks,
     load_dropdown_vocabs,
     resolve_all,
@@ -113,6 +114,9 @@ def build_merged(products_rows: list[dict], page_records: list[dict],
     ws = wb["TEMPLATE"]
     if vendor:
         ws["B1"] = vendor
+
+    if any(r["product"].get("image_path") for r in products_rows):
+        _setup_image_column(ws)
 
     print(f"writing {len(products_rows)} merged product rows", file=sys.stderr)
     write_rows(ws, products_rows, resolutions)

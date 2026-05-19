@@ -32,8 +32,11 @@ from build_buysheet import parse_money  # noqa: E402
 # Order matters for the merge precedence inside a SKU group. "sku" is
 # included so that the first non-empty SKU printing (with whitespace /
 # punctuation preserved) wins for display when the group collapses.
+# image_path follows first-non-empty-wins: when only one source carries
+# a crop (PDF with detection enabled), it survives untouched; when both
+# do it's a single-doc-only feature so the case shouldn't arise.
 _MERGE_FIELDS = ("sku", "description", "color", "cost",
-                 "retail", "intro_date", "gender_hint")
+                 "retail", "intro_date", "gender_hint", "image_path")
 
 # Fields where equivalence is numeric, not string.
 _NUMERIC_FIELDS = ("cost", "retail")
@@ -81,6 +84,10 @@ def _conflicts_in_group(group: list[dict]) -> dict[str, list]:
             # By construction every entry in the group has the same canon
             # SKU, so the raw spellings differ only in whitespace/case —
             # not a conflict worth flagging.
+            continue
+        if field == "image_path":
+            # Derived crop path, not vendor data. Two different files
+            # mean two different docs, not a vendor disagreement.
             continue
         distinct: list = []
         for entry in group:

@@ -12,3 +12,5 @@ analysis/*.json
 tests/
 files/
 BUYSHEET_*.xlsx
+# Local YOLO weights — user-supplied, often hundreds of MB.
+models/

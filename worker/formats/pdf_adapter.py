@@ -18,9 +18,15 @@ from extract_products import MODEL_OPUS, MODEL_SONNET, extract_pdf  # noqa: E402
 
 
 def normalize(pdf_path: Path, *, workers: int, force: bool,
-              model: str = "opus") -> Path:
-    """Classify + extract a PDF. Returns the resulting .pages/ directory."""
+              model: str = "opus", detect_images: bool = False) -> Path:
+    """Classify + extract a PDF. Returns the resulting .pages/ directory.
+
+    `detect_images` runs the optional footwear-detection pre-pass that
+    populates per-product image crops. Single-doc runs only; multi-doc
+    runs pass False because cross-doc image merging is out of scope.
+    """
     classify_pdf(pdf_path, only_page=None, force=force, workers=workers)
     mdl = MODEL_OPUS if model == "opus" else MODEL_SONNET
-    extract_pdf(pdf_path, only_page=None, force=force, workers=workers, model=mdl)
+    extract_pdf(pdf_path, only_page=None, force=force, workers=workers,
+                model=mdl, detect_images=detect_images)
     return pdf_path.with_name(pdf_path.stem + ".pages")

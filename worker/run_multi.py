@@ -50,11 +50,13 @@ EXCEL_EXTS = {".xlsx", ".xlsm"}
 
 
 def _normalize_one(doc: Path, *, workers: int, force: bool, model: str,
-                   vendor_override: str | None) -> Path:
+                   vendor_override: str | None,
+                   detect_images: bool = False) -> Path:
     ext = doc.suffix.lower()
     if ext in PDF_EXTS:
         print(f"--- normalize PDF {doc.name} ---", file=sys.stderr)
-        return pdf_adapter.normalize(doc, workers=workers, force=force, model=model)
+        return pdf_adapter.normalize(doc, workers=workers, force=force,
+                                     model=model, detect_images=detect_images)
     if ext in EXCEL_EXTS:
         print(f"--- normalize Excel {doc.name} ---", file=sys.stderr)
         return excel_adapter.normalize(doc, vendor=vendor_override, force=force)
@@ -111,11 +113,17 @@ def run(docs: list[Path], *, workers: int, force: bool, model: str,
         skip_analysis: bool = False) -> Path:
     started = time.time()
 
+    # Footwear detection runs only on single-doc runs. Multi-doc image
+    # merging (which crop wins when two docs both have one for the same
+    # SKU) is out of scope, so we skip the whole step when N>=2.
+    detect_images = (len(docs) == 1)
+
     pages_dirs: list[Path] = []
     for doc in docs:
         t0 = time.time()
         pd = _normalize_one(doc, workers=workers, force=force,
-                            model=model, vendor_override=vendor_override)
+                            model=model, vendor_override=vendor_override,
+                            detect_images=detect_images)
         pages_dirs.append(pd)
         print(f"  {doc.name}: normalize took {time.time() - t0:.1f}s",
               file=sys.stderr)

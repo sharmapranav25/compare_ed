@@ -1,0 +1,13 @@
+# Core runtime deps for the buy-sheet pipeline (single-doc + multi-doc).
+# Optional footwear detection is split into requirements-detect.txt so the
+# heavy torch + ultralytics stack stays opt-in.
+#
+# Install:
+#   pip install -r requirements.txt
+#   pip install -r requirements-detect.txt   # only if you want shoe crops
+
+anthropic>=0.40.0
+PyMuPDF>=1.24.0
+openpyxl>=3.1.0
+Pillow>=10.0.0
+python-dotenv>=1.0.0
