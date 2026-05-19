@@ -227,6 +227,45 @@ Judge can also run inside the main pipeline (`run_pipeline(pdf, run_judge=True)`
 or by setting the bot to validate every upload. Off by default because
 of the Opus cost surcharge.
 
+## Ground-truth accuracy (the gold standard)
+
+The metrics above (oracle pass rate, judge agreement) are strong proxies but
+not the same as **true accuracy** — neither asks "does the extracted value
+match what a human expert would write?" For that, we use hand-verified
+goldens in `tests/golden/<vendor>.json`.
+
+Workflow:
+
+```bash
+# 1. Scaffold a golden from the latest extraction (one-time per vendor)
+python -m buysheet_v2.tools.scaffold_golden_v2 \
+    ~/buysheet_runs/<vendor>/<timestamp>/<doc>.v2.cards.json \
+    --vendor-key <vendor> --vendor-type athletic-grid --sample 25
+
+# 2. Walk through each SKU and verify against the source PDF
+python -m buysheet_v2.tools.verify_golden \
+    buysheet_v2/tests/golden/<vendor>.json
+#   For each SKU: 'a' to accept, 'e' to edit, 's' to skip, 'q' to quit.
+#   ~30 seconds per SKU on a clean grid catalog; budget 30 min per vendor.
+
+# 3. Run accuracy against verified ground truth
+python -m buysheet_v2.tools.eval_against_goldens
+#   Shows per-vendor + per-field accuracy vs hand-verified values.
+#   Compares to tests/golden_baseline.json; exits 1 if any vendor regressed.
+
+# 4. Lock in baseline after a verified improvement
+python -m buysheet_v2.tools.eval_against_goldens --update-baseline
+```
+
+The eval harness produces the **true accuracy number** — strictly stronger
+than the oracle proxy. It only counts SKUs marked `_verified: true` in the
+golden file, so you can scaffold + verify incrementally without breaking
+the baseline.
+
+Cold-vendor ship gate (Phase 4 of the original design): the same workflow on
+`tests/holdout/*.json` produces the gate metric. Holdouts are catalogs the
+pipeline has never seen during development.
+
 ## Regression checking
 
 After ANY change to `verify.py`, `extract.py`, prompts, or vocab files,

@@ -7,7 +7,7 @@
   "set_type": "golden",
   "skus": [
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 10,
       "sku": "A20062C",
       "mg": "K-Footwear",
@@ -21,10 +21,11 @@
       "usd_retail": 125,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 11,
       "sku": "A20047C",
       "mg": "K-Footwear",
@@ -38,10 +39,11 @@
       "usd_retail": 105,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 12,
       "sku": "A20048C",
       "mg": "K-Footwear",
@@ -55,10 +57,11 @@
       "usd_retail": 105,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 13,
       "sku": "A20049C",
       "mg": "K-Footwear",
@@ -72,10 +75,11 @@
       "usd_retail": 100,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 14,
       "sku": "A24183C",
       "mg": "K-Footwear",
@@ -89,10 +93,11 @@
       "usd_retail": 115,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 15,
       "sku": "A18154F",
       "mg": "K-Footwear",
@@ -106,10 +111,11 @@
       "usd_retail": 95,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 16,
       "sku": "A18157F",
       "mg": "K-Footwear",
@@ -123,10 +129,11 @@
       "usd_retail": 90,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 17,
       "sku": "A18153F",
       "mg": "K-Footwear",
@@ -140,10 +147,11 @@
       "usd_retail": 95,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 18,
       "sku": "A18155F",
       "mg": "K-Footwear",
@@ -157,10 +165,11 @@
       "usd_retail": 95,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 19,
       "sku": "A18156F",
       "mg": "K-Footwear",
@@ -174,10 +183,11 @@
       "usd_retail": 90,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 20,
       "sku": "A18158F",
       "mg": "K-Footwear",
@@ -191,10 +201,11 @@
       "usd_retail": 90,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 21,
       "sku": "A20238C",
       "mg": "W-Footwear",
@@ -208,10 +219,11 @@
       "usd_retail": 120,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 22,
       "sku": "A20239C",
       "mg": "W-Footwear",
@@ -225,10 +237,11 @@
       "usd_retail": 120,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 23,
       "sku": "A24020C",
       "mg": "W-Footwear",
@@ -242,10 +255,11 @@
       "usd_retail": 120,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     },
     {
-      "_verified": true,
+      "_verified": false,
       "_xlsx_row": 24,
       "sku": "A24021C",
       "mg": "W-Footwear",
@@ -259,7 +273,11 @@
       "usd_retail": 120,
       "page": null,
       "brand": null,
-      "has_photo": false
+      "has_photo": false,
+      "_verified_by": "reset-2026-05-18-stub-verified"
     }
-  ]
+  ],
+  "_meta": {
+    "reset_note": "Previously scaffolded from v1 (buggy) output. Stub-marked verified by previous session without actually checking against source PDFs. Reset on 2026-05-18 so a real verification pass can establish ground truth."
+  }
 }
