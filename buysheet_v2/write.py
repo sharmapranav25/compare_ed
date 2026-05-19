@@ -219,7 +219,7 @@ def write_workbook(
     pdf_path: Optional[Path] = None,
     catalog_brand_hint: Optional[str] = None,
     embed_photos: bool = True,
-) -> Path:
+) -> dict:
     """Write the extraction to a BUYSHEET-shaped xlsx.
 
     Multi-brand handling is delegated to consistency.normalize_consistency,
@@ -293,6 +293,7 @@ def write_workbook(
 
     season = normalize_season(extraction.vendor_key, wb)
 
+    truncated_total = 0
     if multi_brand:
         ws_map: dict[str, openpyxl.worksheet.worksheet.Worksheet] = {}
         # Rename the template tab to the first brand; clone for subsequent brands
@@ -307,7 +308,7 @@ def write_workbook(
         if unbranded:
             partitions[first] = partitions.get(first, []) + unbranded
         for brand_name, ws in ws_map.items():
-            _populate_workbook(
+            truncated_total += _populate_workbook(
                 ws, partitions.get(brand_name, []), conf_lookup,
                 pdf, page_dims, brand_name, resolved_photo,
             )
@@ -318,7 +319,7 @@ def write_workbook(
     else:
         # Single-brand case: keep the TEMPLATE sheet, set B1
         target_brand = distinct_brands[0] if distinct_brands else None
-        _populate_workbook(
+        truncated_total += _populate_workbook(
             template_ws, all_cards, conf_lookup,
             pdf, page_dims, target_brand, resolved_photo,
         )
@@ -332,7 +333,11 @@ def write_workbook(
     wb.save(out_path)
     if pdf is not None:
         pdf.close()
-    return out_path
+    return {
+        "out_path": out_path,
+        "truncated_cards": truncated_total,
+        "embedded_photos": len(resolved_photo),
+    }
 
 
 def _populate_workbook(
@@ -343,11 +348,16 @@ def _populate_workbook(
     page_dims: dict[int, Optional[tuple[int, int]]],
     brand_name: Optional[str],
     resolved_photo: dict[tuple[int, str], tuple[int, int, int, int]],
-) -> None:
-    """Write a card list to one worksheet starting at DATA_ROW_START."""
+) -> int:
+    """Write a card list to one worksheet starting at DATA_ROW_START.
+
+    Returns the count of cards dropped due to the template's row 883 hard cap.
+    """
+    truncated = 0
     for i, card in enumerate(cards):
         row = DATA_ROW_START + i
         if row > 883:
+            truncated = len(cards) - i
             break  # template hard cap
         conf = conf_lookup.get((card.sku, card.page))
 
@@ -410,3 +420,4 @@ def _populate_workbook(
                             f"crop_source={crop_source}  bbox={list(crop_bbox)}"
                         ),
                     )
+    return truncated
