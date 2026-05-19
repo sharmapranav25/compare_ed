@@ -1,0 +1,97 @@
+{
+  "_meta": {
+    "last_updated": "2026-05-19T01:52:17.461274+00:00"
+  },
+  "vendors": {
+    "adidas_premium": {
+      "overall_accuracy_pct": 100.0,
+      "per_field_match_rate": {
+        "brand": 100.0,
+        "color": 100.0,
+        "description": 100.0,
+        "intro_date": 100.0,
+        "mg": null,
+        "sg": null,
+        "sku": 100.0,
+        "ssg": null,
+        "standard_color": null,
+        "usd_cost": 100.0,
+        "usd_retail": null
+      },
+      "skus_compared": 25,
+      "skus_missed_from_extraction": 0
+    },
+    "hoka_sp27": {
+      "overall_accuracy_pct": 100.0,
+      "per_field_match_rate": {
+        "brand": null,
+        "color": 100.0,
+        "description": 100.0,
+        "intro_date": 100.0,
+        "mg": null,
+        "sg": null,
+        "sku": 100.0,
+        "ssg": null,
+        "standard_color": null,
+        "usd_cost": 100.0,
+        "usd_retail": null
+      },
+      "skus_compared": 24,
+      "skus_missed_from_extraction": 0
+    },
+    "mizuno_ss27": {
+      "overall_accuracy_pct": 100.0,
+      "per_field_match_rate": {
+        "brand": 100.0,
+        "color": 100.0,
+        "description": 100.0,
+        "intro_date": 100.0,
+        "mg": null,
+        "sg": null,
+        "sku": 100.0,
+        "ssg": null,
+        "standard_color": null,
+        "usd_cost": 100.0,
+        "usd_retail": null
+      },
+      "skus_compared": 18,
+      "skus_missed_from_extraction": 0
+    },
+    "nike_ho26": {
+      "overall_accuracy_pct": 100.0,
+      "per_field_match_rate": {
+        "brand": 100.0,
+        "color": 100.0,
+        "description": 100.0,
+        "intro_date": 100.0,
+        "mg": null,
+        "sg": null,
+        "sku": 100.0,
+        "ssg": null,
+        "standard_color": null,
+        "usd_cost": 100.0,
+        "usd_retail": null
+      },
+      "skus_compared": 25,
+      "skus_missed_from_extraction": 0
+    },
+    "sps_2024": {
+      "overall_accuracy_pct": 95.91836734693878,
+      "per_field_match_rate": {
+        "brand": 100.0,
+        "color": 86.95652173913044,
+        "description": 96.0,
+        "intro_date": null,
+        "mg": null,
+        "sg": null,
+        "sku": 100.0,
+        "ssg": null,
+        "standard_color": null,
+        "usd_cost": null,
+        "usd_retail": null
+      },
+      "skus_compared": 25,
+      "skus_missed_from_extraction": 0
+    }
+  }
+}

@@ -112,7 +112,8 @@ def score_vendor(golden: dict, sidecar: Path) -> dict:
 
     per_field: dict[str, dict[str, int]] = {
         f: {"compared": 0, "match": 0, "mismatch": 0,
-            "extracted_null": 0, "golden_null": 0}
+            "extracted_null": 0, "golden_null": 0,
+            "golden_null_extracted_filled": 0}
         for f in FIELDS_TO_EVAL
     }
     skus_compared = 0
@@ -133,12 +134,17 @@ def score_vendor(golden: dict, sidecar: Path) -> dict:
         for f in FIELDS_TO_EVAL:
             g_val = gentry.get(f)
             e_val = getattr(card, f, None)
-            if g_val is None and e_val is None:
+            # Golden null means "we have no ground-truth for this field on this
+            # SKU" — skip it entirely. Treating it as a mismatch when extracted
+            # has a value would falsely deflate accuracy for fields the
+            # verifier chose not to claim authority over (e.g. derived
+            # classifications like mg/sg/ssg that can't be checked from source
+            # text alone).
+            if g_val is None:
+                if e_val is not None:
+                    per_field[f]["golden_null_extracted_filled"] += 1
                 continue
             per_field[f]["compared"] += 1
-            if g_val is None:
-                per_field[f]["golden_null"] += 1
-                continue
             if e_val is None:
                 per_field[f]["extracted_null"] += 1
                 if len(mismatch_samples) < 12:
