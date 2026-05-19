@@ -363,15 +363,67 @@ def verify_card(
     per_field = {}
     per_field_source = {}
     flags = []
+    sku_context: Optional[str] = None
 
-    # SKU itself: high confidence if found in text, lower if not
+    # SKU itself: confidence depends on whether (a) the VLM's SKU was found in
+    # page text and (b) the page even has a usable text layer to verify against.
     if sku_in_text:
         per_field["sku"] = 1.0
         per_field_source["sku"] = "vlm+text_anchored"
     else:
-        per_field["sku"] = 0.5
-        per_field_source["sku"] = "vlm_only"
-        flags.append(f"sku '{card.sku}' not found in page {card.page} text")
+        # Distinguish "VLM misread" from "image-only page (can't verify at all)"
+        # by checking how many of the OTHER SKUs the VLM extracted ARE present
+        # in the page text. A rich text layer means at least a few siblings
+        # match — and if the THIS SKU doesn't, it's almost certainly a
+        # vision-misread (R↔B, O↔0, S↔5, etc.) rather than missing text.
+        sibling_skus_in_text = sum(
+            1 for s in all_skus_on_page
+            if s != card.sku and find_sku_offset(page_text, s) is not None
+        )
+        text_layer_strong = sibling_skus_in_text >= 3
+
+        if text_layer_strong:
+            # Likely VLM misread — blank in xlsx with context for the human.
+            per_field["sku"] = 0.0
+            per_field_source["sku"] = "vlm_not_in_source_text"
+            # Build context for the cell comment. Try multiple anchors so
+            # reviewers always see SOMETHING useful — the right SKU is
+            # usually within a few hundred chars of where the VLM's family
+            # prefix appears in the page.
+            prefix = _sku_prefix(card.sku)
+            anchors = []
+            if prefix and prefix != card.sku:
+                anchors.append(prefix)             # e.g. "1110519" of "1110519-AVBL"
+            # First word fallback for VLM-put-description-in-sku failures
+            # (Mizuno-style "WAVE PROPHECY LS OPEN MESH" used as sku).
+            first_word = card.sku.split()[0] if card.sku.split() else ""
+            if first_word and first_word not in anchors:
+                anchors.append(first_word)
+            # Last-resort: any SIBLING SKU we know is in this page's text — the
+            # right SKU is usually right next to one of those.
+            for sibling in all_skus_on_page:
+                if sibling != card.sku and find_sku_offset(page_text, sibling):
+                    anchors.append(sibling)
+                    break
+            for a in anchors:
+                m = re.search(re.escape(a), page_text)
+                if m:
+                    ctx_start = max(0, m.start() - 60)
+                    ctx_end = min(len(page_text), m.end() + 280)
+                    sku_context = page_text[ctx_start:ctx_end].strip()
+                    break
+            flags.append(
+                f"sku '{card.sku}' not found in page {card.page} text layer "
+                f"({sibling_skus_in_text} sibling SKUs ARE in text — likely VLM misread)"
+            )
+        else:
+            # Image-only or sparse-text page — can't reliably blame the VLM.
+            per_field["sku"] = 0.5
+            per_field_source["sku"] = "vlm_only_image_page"
+            flags.append(
+                f"sku '{card.sku}' not found in page {card.page} text "
+                f"(image-only page: only {sibling_skus_in_text} sibling SKUs in text layer)"
+            )
 
     # Description + color: verified by source-text substring match
     for f, val in [("description", card.description), ("color", card.color)]:
@@ -567,6 +619,7 @@ def verify_card(
         sku=card.sku, page=card.page,
         per_field=per_field, per_field_source=per_field_source,
         overall=overall, flags=flags,
+        sku_context=sku_context,
     )
 
 

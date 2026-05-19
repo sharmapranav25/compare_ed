@@ -103,14 +103,28 @@ _SOURCE_DESCRIPTIONS = {
     "vlm_extraction_error_color_eq_description":
                                     "VLM put the description text in the color field — likely wrong",
     "contradicted":                 "the value the model extracted does NOT appear in the source page text",
+    "vlm_not_in_source_text":       "VLM-extracted SKU not found in source text (likely single-char misread)",
+    "vlm_only_image_page":          "page has no usable text layer; SKU could not be verified",
 }
 
 
 def _comment_for(field_name: str, raw_value, conf_value: float, source: str,
-                 page: int, blanked: bool) -> str:
+                 page: int, blanked: bool, sku_context: Optional[str] = None) -> str:
     explanation = _SOURCE_DESCRIPTIONS.get(source, source)
     if blanked:
         raw_repr = f'"{raw_value}"' if raw_value is not None else "(none)"
+        # SKU-specific: surface the source-text region around the SKU prefix
+        # so the buyer can spot the correct SKU without leaving the workbook.
+        if field_name == "sku" and sku_context:
+            return (
+                f"AUTO-OMITTED — manual review required\n"
+                f"Page {page} · confidence {conf_value:.2f}\n"
+                f"Model extracted: {raw_repr}\n"
+                f"Reason: {explanation}\n\n"
+                f"Source text near this SKU's family on page {page}:\n"
+                f"{sku_context}\n\n"
+                f"Pick the correct SKU from the source text above."
+            )
         return (
             f"AUTO-OMITTED — manual review required\n"
             f"Page {page} · confidence {conf_value:.2f}\n"
@@ -341,10 +355,15 @@ def _populate_workbook(
             if field_name == "photo":
                 continue
             if field_name == "sku":
-                # SKU is the row key — always written, never blanked.
+                # SKU now respects the same red/amber tiering as other fields:
+                # if verify.py determined the VLM-extracted SKU is not present
+                # in source text on a page WITH a usable text layer, blank
+                # the cell + surface a source-text snippet in the comment.
                 value = card.sku
-                conf_value = 1.0
-                source = "sku_anchor"
+                conf_value = (conf.per_field.get("sku") if conf else None)
+                if conf_value is None:
+                    conf_value = 1.0
+                source = (conf.per_field_source.get("sku") if conf else None) or "sku_anchor"
             else:
                 value = getattr(card, field_name, None)
                 if value is None:
@@ -352,9 +371,9 @@ def _populate_workbook(
                 conf_value = (conf.per_field.get(field_name) if conf else None) or 0.0
                 source = (conf.per_field_source.get(field_name) if conf else None) or "vlm"
 
-            if field_name != "sku" and conf_value <= CONTRADICTED_THRESHOLD:
+            if conf_value <= CONTRADICTED_THRESHOLD:
                 tier = "red"
-            elif field_name != "sku" and conf_value < LOW_CONFIDENCE_THRESHOLD:
+            elif conf_value < LOW_CONFIDENCE_THRESHOLD:
                 tier = "amber"
             else:
                 tier = "ok"
@@ -362,6 +381,7 @@ def _populate_workbook(
             comment = _comment_for(
                 field_name, value, conf_value, source,
                 page=card.page, blanked=(tier == "red"),
+                sku_context=(conf.sku_context if conf else None),
             )
             _write_cell(ws, row, col, value, comment=comment, tier=tier)
 
