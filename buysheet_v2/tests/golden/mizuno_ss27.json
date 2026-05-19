@@ -1,8 +1,8 @@
 {
   "vendor_key": "mizuno_ss27",
   "vendor_type": "lookbook",
-  "pdf_path": "/Users/edwardionel/buysheet_runs/ss27_mizuno_sportstyle_usa_deck_-_tier_1_.pdf_(1)/20260518-141348/SS27 MIZUNO SPORTSTYLE USA DECK - Tier 1 .pdf (1).pdf",
-  "source_sidecar": "/Users/edwardionel/buysheet_runs/ss27_mizuno_sportstyle_usa_deck_-_tier_1_.pdf_(1)/20260518-141348/SS27 MIZUNO SPORTSTYLE USA DECK - Tier 1 .pdf (1).v2.cards.json",
+  "pdf_path": "<redacted-local-path>/SS27 MIZUNO SPORTSTYLE USA DECK - Tier 1 .pdf (1).pdf",
+  "source_sidecar": "<redacted-local-path>/SS27 MIZUNO SPORTSTYLE USA DECK - Tier 1 .pdf (1).v2.cards.json",
   "scaffolded_at": "2026-05-18",
   "description": "Scaffolded from SS27 MIZUNO SPORTSTYLE USA DECK - Tier 1 .pdf (1).v2.cards.json (20 SKUs sampled evenly across 69 cards). Each entry has `_verified: false` \u2014 flip to true after manually verifying field values against the source PDF. Eval harness only counts verified entries.",
   "skus": [

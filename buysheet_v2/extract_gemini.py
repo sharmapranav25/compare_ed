@@ -18,19 +18,40 @@ Pricing reference (May 2026, google.com/ai/pricing):
 """
 from __future__ import annotations
 
+import json
 import os
+import re
+import time
+from pathlib import Path
 from typing import Optional
 
 from google import genai
 from google.genai import types
+from google.genai import errors as genai_errors
 from pydantic import BaseModel, Field
 
+from buysheet_v2.extract import _card_text_snippet
 from buysheet_v2.ingest import IngestedPage
 from buysheet_v2.schemas.card import (
     MG, SG, SSG, CardBbox, Month, ProductCard, StandardColor,
 )
 
+_PROMPT_PATH = Path(__file__).parent / "prompts" / "card_extract.md"
+
+
+def _load_system_prompt() -> str:
+    text = _PROMPT_PATH.read_text()
+    if "## User message" in text:
+        text = text.split("## User message")[0]
+    return text
+
 DEFAULT_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+# Free-tier rate limit on gemini-2.5-flash is 20 requests/minute. Pace
+# ourselves below that so we don't burn batched runs on 429 retries.
+# Override via env if you have a paid project with higher limits.
+_MIN_INTERVAL_SEC = float(os.environ.get("GEMINI_MIN_INTERVAL_SEC", "4.0"))
+_LAST_CALL_AT: list[float] = [0.0]
 
 # Pricing per MTok (in / out). Gemini 2.5 Pro is the default; flash is ~4x cheaper.
 GEMINI_PRICING = {
@@ -60,37 +81,12 @@ class GeminiExtractionResponse(BaseModel):
     cards: list[GeminiExtractedCard] = Field(default_factory=list)
 
 
-# Same general guidance Sonnet gets — we want to test the MODEL, not prompt
-# engineering. The prompt is intentionally vendor-agnostic.
-GEMINI_SYSTEM_PROMPT = """You are extracting product cards from a shoe-catalog page for a buyer's worksheet.
-
-For each distinct product visible on this page, return a GeminiExtractedCard with:
-
-  - sku: the printed style number, exactly as shown (preserve case + dashes)
-  - brand: vendor brand if shown on the card or its section header (else null)
-  - description: the product model/silhouette name (e.g. "AIR FORCE 1 '07", "BONDI 7")
-  - color: the printed colorway verbatim (no normalization)
-  - mg: "M-Footwear" / "W-Footwear" / "K-Footwear" — based on visible gender signal
-        (WMNS, MEN, KIDS, GS, PS, JR, etc). Null if no signal.
-  - sg: one of {Sneakers, Boots, Heels, Miscellaneous, Sandals, Shoes, Slippers}
-  - ssg: one of {Basketball, Causal Shoe, Court, Cupsole, Flats, Heels,
-                 Miscellaneous, Modern Comfort, Running, Slip On, Sneakerboot,
-                 Training, Vulcanized}
-  - standard_color: one of {Beige, Black, Blue, Brown, Burgundy, Clear, Gold,
-                            Gold/Silver, Green, Grey, Multi, Orange, Pink,
-                            Purple, Red, White, Yellow}
-  - intro_date: 3-letter month code (JAN, FEB, ..., DEC) if a launch date is shown
-  - usd_cost: USD wholesale price as a number (no $ sign) if shown
-  - usd_retail: USD retail price as a number if shown
-
-Rules:
-  1. Extract each card independently — do not copy values across cards
-  2. Return null for any field you cannot read from THIS card alone
-  3. Real SKUs are alphanumeric codes (e.g. JA1013-010, 1110518-BBLC, X826W).
-     If the only "SKU" visible is a slugified description, treat it as null.
-  4. Color must be VERBATIM from the page text — do not interpret
-  5. If a model name spans multiple colorway rows, apply it to all sibling SKUs
-"""
+# NOTE: as of the apples-to-apples refactor, Gemini gets the SAME system prompt
+# Sonnet does (loaded from prompts/card_extract.md) plus the SAME per-card hints
+# (bbox + sku_hint + source_text_snippet). This makes the model the only
+# variable across the 3-way comparison. The previous slim vendor-agnostic
+# prompt was a deliberate "raw vision" baseline; the refactored version answers
+# "how well does Gemini do when given everything Sonnet gets?".
 
 
 def extract_cards_on_page_gemini(
@@ -107,10 +103,13 @@ def extract_cards_on_page_gemini(
     """Extract all product cards from a page using Gemini.
 
     Returns (cards, usage_metadata) — same shape as extract.extract_cards_on_page.
-    card_bboxes is accepted but ignored: Gemini works from the page image
-    without pre-computed bboxes, which is part of the cross-model comparison.
+    Uses the Sonnet system prompt + per-card bbox/sku/source-text hints so the
+    only variable across the 3-way comparison is the model itself.
     """
-    _ = card_bboxes, expected_fields  # signature-compatibility only
+    if not card_bboxes:
+        return [], {"page": page.page_no, "input_tokens": 0, "output_tokens": 0,
+                    "cache_read_tokens": 0, "cost_usd": 0.0,
+                    "extracted_card_count": 0, "model": model}
 
     if client is None:
         if not os.environ.get("GEMINI_API_KEY"):
@@ -120,39 +119,83 @@ def extract_cards_on_page_gemini(
             )
         client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
+    system_prompt = _load_system_prompt()
+    sku_hints = [c.sku_hint for c in card_bboxes if c.sku_hint]
+    card_payload = []
+    for c in card_bboxes:
+        snippet = _card_text_snippet(page.text, c.sku_hint, sku_hints)
+        card_payload.append({
+            "bbox_px": c.bbox_px,
+            "sku_hint": c.sku_hint,
+            "source_text_snippet": snippet,
+        })
+    bbox_json = json.dumps(card_payload, indent=2)
     user_text = (
-        f"Extract all product cards from page {page.page_no} of this catalog.\n\n"
+        f"Extract all product cards from page {page.page_no}.\n\n"
+        f"Card bboxes + source-text snippets (one per card):\n{bbox_json}\n\n"
         f"Layout type: {layout_type}\n"
         f"Multi-brand: {is_multi_brand}\n"
         f"Catalog brand (single-brand catalogs only): {catalog_brand or 'null'}\n"
+        f"Expected fields present: {expected_fields or 'all'}\n"
         f"Page render dimensions: {page.width_px} x {page.height_px} pixels"
     )
 
-    response = client.models.generate_content(
-        model=model,
-        contents=[
-            types.Part.from_bytes(data=page.png_bytes, mime_type="image/png"),
-            types.Part.from_text(text=user_text),
-        ],
-        config=types.GenerateContentConfig(
-            system_instruction=GEMINI_SYSTEM_PROMPT,
-            response_mime_type="application/json",
-            response_schema=GeminiExtractionResponse,
-            max_output_tokens=16384,
-        ),
-    )
+    # Proactive throttle to stay under free-tier 20 req/min limit before
+    # the Gemini server has to send 429s. Module-level last-call timestamp
+    # means the throttle is shared across all calls in this process.
+    elapsed = time.time() - _LAST_CALL_AT[0]
+    if elapsed < _MIN_INTERVAL_SEC:
+        time.sleep(_MIN_INTERVAL_SEC - elapsed)
+
+    # Gemini Flash free tier is 20 requests/minute; retry-with-backoff on 429s
+    # and parse Google's suggested retryDelay when present. Up to 3 attempts.
+    response = None
+    for attempt in range(3):
+        try:
+            _LAST_CALL_AT[0] = time.time()
+            response = client.models.generate_content(
+                model=model,
+                contents=[
+                    types.Part.from_bytes(data=page.png_bytes, mime_type="image/png"),
+                    types.Part.from_text(text=user_text),
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    response_mime_type="application/json",
+                    response_schema=GeminiExtractionResponse,
+                    max_output_tokens=16384,
+                ),
+            )
+            break
+        except genai_errors.ClientError as e:
+            status = getattr(e, "status_code", None) or getattr(e, "code", None)
+            if status != 429 or attempt == 2:
+                raise
+            # Parse Google's suggested retry delay from the error message
+            wait = 60.0  # default
+            msg = str(e)
+            m = re.search(r"retry in ([\d.]+)s", msg)
+            if m:
+                wait = float(m.group(1)) + 2  # small safety buffer
+            wait = min(wait, 90.0)  # cap so we don't sleep forever
+            time.sleep(wait)
+    if response is None:
+        raise RuntimeError("Gemini call failed after retries (no response captured)")
 
     parsed: GeminiExtractionResponse = response.parsed  # type: ignore[assignment]
 
     # Map GeminiExtractedCard -> ProductCard so downstream verify/write code
-    # works unchanged. We don't have card_bbox_px from Gemini, so synthesize
-    # a placeholder (the comparison tool ignores bbox anyway).
+    # works unchanged. Match each output card back to its input CardBbox by SKU
+    # so card_bbox_px is the real detected bbox (needed for downstream photo
+    # embedding); fall back to whole-page only if no SKU match exists.
+    bbox_by_sku = {cb.sku_hint: cb.bbox_px for cb in card_bboxes if cb.sku_hint}
+    page_bbox = [0, 0, page.width_px, page.height_px]
     cards: list[ProductCard] = []
     for gc in parsed.cards if parsed else []:
         try:
             cards.append(ProductCard(
                 page=page.page_no,
-                card_bbox_px=[0, 0, page.width_px, page.height_px],  # whole-page placeholder
+                card_bbox_px=bbox_by_sku.get(gc.sku, page_bbox),
                 photo_bbox_px=None,
                 sku=gc.sku,
                 brand=gc.brand,

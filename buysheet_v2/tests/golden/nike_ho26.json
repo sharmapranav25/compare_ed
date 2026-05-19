@@ -1,8 +1,8 @@
 {
   "vendor_key": "nike_ho26",
   "vendor_type": "athletic-grid",
-  "pdf_path": "/Users/edwardionel/buysheet_runs/ho26_gel_fw_(3).pptx/20260518-140828/HO26 GEL FW (3).pptx.pdf",
-  "source_sidecar": "/Users/edwardionel/buysheet_runs/ho26_gel_fw_(3).pptx/20260518-140828/HO26 GEL FW (3).pptx.v2.cards.json",
+  "pdf_path": "<redacted-local-path>/HO26 GEL FW (3).pptx.pdf",
+  "source_sidecar": "<redacted-local-path>/HO26 GEL FW (3).pptx.v2.cards.json",
   "scaffolded_at": "2026-05-18",
   "description": "Scaffolded from HO26 GEL FW (3).pptx.v2.cards.json (25 SKUs sampled evenly across 110 cards). Each entry has `_verified: false` \u2014 flip to true after manually verifying field values against the source PDF. Eval harness only counts verified entries.",
   "skus": [

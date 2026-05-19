@@ -1,8 +1,8 @@
 {
   "vendor_key": "sps_2024",
   "vendor_type": "multi-brand",
-  "pdf_path": "/Users/edwardionel/buysheet_runs/2024_sps_shoe_catalog/20260518-080206/2024 SPS Shoe Catalog.pdf",
-  "source_sidecar": "/Users/edwardionel/buysheet_runs/2024_sps_shoe_catalog/20260518-080206/2024 SPS Shoe Catalog.v2.cards.json",
+  "pdf_path": "<redacted-local-path>/2024 SPS Shoe Catalog.pdf",
+  "source_sidecar": "<redacted-local-path>/2024 SPS Shoe Catalog.v2.cards.json",
   "scaffolded_at": "2026-05-18",
   "description": "Scaffolded from 2024 SPS Shoe Catalog.v2.cards.json (25 SKUs sampled evenly across 249 cards). Each entry has `_verified: false` \u2014 flip to true after manually verifying field values against the source PDF. Eval harness only counts verified entries.",
   "skus": [
