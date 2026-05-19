@@ -1,13 +1,28 @@
 # KithxKeeloShoeBuying
 
-VLM-first extraction pipeline that turns shoebuyer catalog PDFs into the
-Kith buy-sheet template (`BUYSHEET_<vendor>.xlsx`) with per-cell confidence
-scoring and a deterministic source-text verification oracle.
+VLM-first extraction pipeline that turns shoebuyer catalog PDFs into the Kith
+buy-sheet template — text fields, product photos in column A, and a side-by-
+side Google Sheet ready for the buying team to use in <30 minutes.
 
-**Current release: text-only v1.** Field extraction (SKU, brand, description,
-color, MG/SG/SSG, intro date, USD cost/retail) is wired through. Image
-embedding in column A is intentionally deferred — see
-[ARCHITECTURE.md](ARCHITECTURE.md) for the rationale and roadmap.
+**Current release: v2 (text + photos + Sheets delivery), shipped 2026-05-19.**
+
+What's wired through:
+- Field extraction (SKU, brand, description, color, MG/SG/SSG, intro date,
+  USD cost/retail) via Claude Sonnet 4.6 + Anthropic Structured Outputs.
+- Per-cell semantic verification oracle (every claimed value must appear in
+  source page text within its card region; SKU misreads get blank-and-flag
+  treatment).
+- **Photo binding** via YOLO-World shoe detection + Sonnet matcher
+  (decouples *where are shoes?* from *which SKU is which?* — works on PPTX
+  grids, lookbooks with description-as-SKU, hero+swatch layouts).
+- **Path C Google Sheets API direct delivery** — Slack bot posts a
+  ready-to-use Sheet URL alongside the xlsx, photos embedded in-cell from
+  sheet-creation time (no manual Apps Script step, no floating-image drift).
+- Honest Slack summary: per-field fill rates, page failure count, row-
+  truncation warnings, embedded photo count.
+
+Full architecture + accuracy benchmarks + decisions log in
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
@@ -45,9 +60,11 @@ User flow:
 1. Drop PDF in the configured channel.
 2. Bot replies in thread with an ETA (~20 s/page).
 3. Pings at 25 / 50 / 75% during extraction.
-4. Final post: summary (cards extracted, % verified, amber + red cell counts,
-   cost) and the finished `BUYSHEET_<vendor>_v2.xlsx` attached to the same
-   thread.
+4. Final post: honest summary (cards extracted with page-failure count, % of
+   cells verified, amber/red counts, **per-field fill rate breakdown**,
+   embedded photo count, truncation warning if catalog exceeds template
+   row cap, cost) followed by both the finished `BUYSHEET_<vendor>_v2.xlsx`
+   AND the Google Sheet URL ready to open.
 
 Every PDF run is persisted to `~/buysheet_runs/<pdf_stem>/<timestamp>/` with
 the source PDF, extraction sidecar, and output workbook — so post-hoc
@@ -58,55 +75,77 @@ See [`.env.example`](.env.example) for the full Slack app setup checklist.
 ## What it does
 
 ```
-PDF
+PDF (uploaded to Slack)
  → ingest         render pages @ 1568px long edge + extract text layer
  → classify       Opus 4.7, 1 call: layout type, multi-brand?, expected fields
+ → yolo_detect    YOLO-World detects all shoes per page (free, local) +
+                  density picker (Sonnet) chooses imgsz 1280/1920/2560 +
+                  annotated.png with red numbered boxes for the matcher
  → cards          Sonnet 4.6 vision per page: card bboxes + SKU hints
  → extract        Sonnet 4.6 + Structured Outputs: full ProductCard per page
                   (with per-card retry fallback for dense grids)
+ → photo_match    Sonnet matches each SKU to a numbered YOLO box on the
+                  annotated page — overwrites card.photo_bbox_px with the
+                  YOLO bbox (layout-agnostic, no text-anchor dependency)
  → verify         deterministic semantic oracle (every value must appear in
-                  source text within the SKU's card region)
+                  source text within the SKU's card region) + SKU
+                  blank-and-flag defense for single-char vision misreads
  → consistency    SKU dedup + brand voting + multi-brand workbook split
- → write          BUYSHEET-template xlsx: 1 tab per brand, amber + cell
-                  comments for low-confidence cells
+ ├→ write         BUYSHEET-template xlsx: 1 tab per brand, photos in col A,
+ │                amber/red tier formatting + cell comments
+ └→ sheets_writer Google Sheets API direct delivery: photos in-cell at
+                  sheet creation (no manual Apps Script, no drift),
+                  tier formatting + cell notes + domain sharing
 ```
 
-Detailed walkthrough in [ARCHITECTURE.md](ARCHITECTURE.md).
+Detailed walkthrough + per-vendor accuracy benchmarks + decisions log in
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Layout
 
 ```
 KithxKeeloShoeBuying/
 ├── README.md                       # this file
-├── ARCHITECTURE.md                 # CTO-facing system overview
+├── ARCHITECTURE.md                 # CTO-facing system overview (full detail)
+├── ACCURACY_EXPECTATIONS.md        # per-vendor fill-rate expectations
 ├── LICENSE
 ├── .env.example
 ├── .gitignore
 ├── BUYSHEET_template.xlsx          # output template (immutable shared asset)
-├── apps_script/
-│   ├── INSTALL.md                  # one-time Google Sheets setup
-│   └── fix_images.gs               # GS image-in-cell helper (kept for future image-binding release)
+├── apps_script/                    # legacy "Fix images" Apps Script
+│                                   # (superseded by Path C direct Sheets API,
+│                                   #  kept as fallback for xlsx-only workflows)
 └── buysheet_v2/                    # main pipeline package
     ├── pyproject.toml
-    ├── cli.py                      # python -m buysheet_v2 {run,eval,debug-cards,cost}
-    ├── pipeline.py                 # orchestrator
-    ├── ingest.py                   # PDF -> renders + text
-    ├── classify.py                 # doc-level layout classification (Opus 4.7)
+    ├── cli.py                      # python -m buysheet_v2 entry point
+    ├── pipeline.py                 # orchestrator (YOLO+matcher integrated)
+    ├── ingest.py                   # PDF → renders + text
+    ├── classify.py                 # Opus 4.7 layout classification
+    ├── yolo_detect.py              # YOLO-World shoe detection pre-pass
+    ├── photo_match.py              # density picker + SKU→bbox matcher
+    ├── photo_vlm.py                # LEGACY text-anchored bbox (graceful fallback)
+    ├── phototune.py                # deterministic geometric photo fallback
     ├── cards.py                    # per-page card detection (Sonnet 4.6)
-    ├── extract.py                  # per-card structured extraction (+ retry)
-    ├── verify.py                   # semantic oracle (10 field-level verifiers)
-    ├── consistency.py              # SKU dedup, brand voting, multi-brand split
+    ├── extract.py                  # per-card structured extraction + retry
+    ├── verify.py                   # semantic oracle + SKU blank-and-flag
+    ├── consistency.py              # SKU dedup, brand voting, multi-brand
     ├── confidence.py               # per-cell confidence scoring
-    ├── write.py                    # xlsx generation
-    ├── schemas/                    # Pydantic models (ProductCard, etc)
+    ├── write.py                    # xlsx generation with photos
+    ├── sheets_writer.py            # Path C Google Sheets API delivery
+    ├── schemas/                    # Pydantic models
     ├── prompts/                    # versioned VLM prompts
-    ├── vocab/                      # closed vocabularies (color synonyms, MG/SG/SSG, etc)
-    ├── lifted/                     # helpers reused from v1 (page render, vocab norm)
-    └── tests/
-        ├── eval_harness.py         # per-vendor accuracy reporter
-        ├── scaffold_golden.py      # build ground-truth templates from current outputs
-        ├── golden/                 # hand-verified ground truth (Nike, Adidas, Converse)
-        └── holdout/                # vendors NEVER seen during dev — cold-vendor ship gate
+    ├── vocab/                      # closed vocabularies (color, MG/SG/SSG, etc)
+    ├── models/                     # YOLO weights (auto-downloaded, gitignored)
+    ├── lifted/                     # v0 helpers (page render, vocab norm)
+    ├── slack_bot/                  # Socket Mode entrypoint + FIFO worker
+    └── tools/
+        ├── eval_against_goldens.py # per-vendor accuracy vs verified ground truth
+        ├── multi_model_extract.py  # 3-way Sonnet+Opus+Gemini extraction
+        ├── three_way_compare.py    # cross-model agreement classifier
+        ├── scaffold_golden_v2.py + verify_golden.py
+        ├── enrich_description_map.py + enrich_color_synonyms.py
+        ├── golden/                 # hand-verified ground truth (6 vendors)
+        └── holdout/                # vendors NEVER seen during dev — ship gate
 ```
 
 ## Verified accuracy (v1)
@@ -144,30 +183,48 @@ walkthrough in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Cost
 
-Per-catalog API spend (Sonnet 4.6 + Opus 4.7):
+Per-catalog API spend (Sonnet 4.6 extract + Opus 4.7 classify + Sonnet density
+picker + Sonnet matcher + free local YOLO):
 
-| Vendor | Pages | API cost |
-|--------|------:|---------:|
-| Nike HO26 | 9 | $0.53 |
-| Adidas FW26 premium | 31 | $1.73 |
-| Converse HO26 | 17 | $0.34 |
+| Vendor | Pages | Cards | API cost | Wall time |
+|--------|------:|------:|---------:|----------:|
+| Nike HO26 | 9 | 110 | ~$1.20 | ~4 min |
+| Hoka SP27 | 9 | 176 | ~$1.50 | ~5 min |
+| Mizuno SS27 | 90 | 120 | ~$3.00 | ~10 min |
+| SPS 2024 | 66 | 257 | ~$3.50 | ~11 min |
+| Adidas FW26 premium | 31 | 343 | ~$4.50 | ~12 min |
 
-100 catalogs/month at this rate: ~$80/month. Sidecar caching means re-runs
-are free.
+Average across 5 validated catalogs: **~$2.74 per catalog**. At 100
+catalogs/month: ~$275/month. Sidecar caching means re-runs are free.
 
-## Known limitations (v1)
+## Photo binding (the v2 win)
 
-- **Column A (PHOTO) is intentionally empty.** Native VLM-driven photo
-  extraction was tried and reached only ~50% binding accuracy on dense
-  multi-section grids. The right approach — native PDF XObject extraction
-  + nearest-neighbor SKU binding (free) or Meta SAM-based segmentation —
-  is scheduled for v2. See [ARCHITECTURE.md](ARCHITECTURE.md#image-binding-deferred-to-v2).
-- **Image-only catalogs** (rasterized PPT exports) extract correctly via
-  vision but can't be verified against a text layer. Confidence reports
-  these as `vlm_only_no_region` rather than confirmed.
+The v1 text-anchored photo bbox strategy failed on catalogs where photos
+aren't reliably near SKU text. v2 replaces it with YOLO-World detection +
+Sonnet matcher (decouples *where are shoes?* from *which SKU is which?*):
+
+| Catalog | Layout | v1 (text-anchored) | v2 (YOLO + matcher) |
+|---|---|---:|---:|
+| Hoka SP27 | Lookbook + sibling colorways | visible misalignment | **172/176 (98%)** |
+| Nike HO26 PPTX | Tiny shoes + dense text | text-crops, not shoes | 91/111 (82%) |
+| Salomon SS27 | Hero + swatch grid | mixed text/swatch crops | 140/150 (93%) |
+| Mizuno SS27 | Description-as-SKU lookbook | **6/120** anchors | **120/120 (100%)** |
+| SPS 2024 | Matrix table | not benchmarked | 256/257 (99.6%) |
+| LLT (image-only) | Scanned PDF | (whole-card fallback) | 5 YOLO + 8 phototune |
+
+YOLO weights (`yolov8s-worldv2.pt`, ~25MB) auto-download on first run.
+`ultralytics` is an optional dep — when missing, the pipeline falls back
+to the legacy text-anchored bbox path.
+
+## Known limitations
+
+- **Image-only catalogs** extract correctly via vision but text-field
+  verification falls back to `vlm_only_no_region` confidence. YOLO+matcher
+  still works on these when shoes are visible.
 - **mg / sg / ssg vocab coverage gaps** show up as "uncertain" rather than
-  wrong. Closing them is a `vocab/description_map.json` enrichment task,
-  not a model issue.
+  wrong. Closing them is a `vocab/description_map.json` enrichment task.
+- **YOLO inference is serial** (ultralytics.predict not thread-safe).
+  Adidas-scale catalogs spend ~5 min in the YOLO pre-pass alone.
 
 ## Random / cold catalog onboarding
 
