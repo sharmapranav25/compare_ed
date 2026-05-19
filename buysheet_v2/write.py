@@ -103,14 +103,28 @@ _SOURCE_DESCRIPTIONS = {
     "vlm_extraction_error_color_eq_description":
                                     "VLM put the description text in the color field — likely wrong",
     "contradicted":                 "the value the model extracted does NOT appear in the source page text",
+    "vlm_not_in_source_text":       "VLM-extracted SKU not found in source text (likely single-char misread)",
+    "vlm_only_image_page":          "page has no usable text layer; SKU could not be verified",
 }
 
 
 def _comment_for(field_name: str, raw_value, conf_value: float, source: str,
-                 page: int, blanked: bool) -> str:
+                 page: int, blanked: bool, sku_context: Optional[str] = None) -> str:
     explanation = _SOURCE_DESCRIPTIONS.get(source, source)
     if blanked:
         raw_repr = f'"{raw_value}"' if raw_value is not None else "(none)"
+        # SKU-specific: surface the source-text region around the SKU prefix
+        # so the buyer can spot the correct SKU without leaving the workbook.
+        if field_name == "sku" and sku_context:
+            return (
+                f"AUTO-OMITTED — manual review required\n"
+                f"Page {page} · confidence {conf_value:.2f}\n"
+                f"Model extracted: {raw_repr}\n"
+                f"Reason: {explanation}\n\n"
+                f"Source text near this SKU's family on page {page}:\n"
+                f"{sku_context}\n\n"
+                f"Pick the correct SKU from the source text above."
+            )
         return (
             f"AUTO-OMITTED — manual review required\n"
             f"Page {page} · confidence {conf_value:.2f}\n"
@@ -205,7 +219,7 @@ def write_workbook(
     pdf_path: Optional[Path] = None,
     catalog_brand_hint: Optional[str] = None,
     embed_photos: bool = True,
-) -> Path:
+) -> dict:
     """Write the extraction to a BUYSHEET-shaped xlsx.
 
     Multi-brand handling is delegated to consistency.normalize_consistency,
@@ -249,36 +263,51 @@ def write_workbook(
             h = int(round(page.get_height() * scale))
             page_dims[page_no] = (w, h)
 
-    # Photo-bbox resolution (two-stage), only when embed_photos is set:
-    #   1. photo_vlm.resolve_catalog_photo_bboxes — per-card VLM extraction
-    #      with SKU-marker annotation. Sidecar-cached so re-runs of write.py
-    #      cost $0. ~$0.003/SKU when fresh.
-    #   2. phototune.resolve_page_photo_bboxes — deterministic heuristic
-    #      (PyMuPDF SKU anchor + row-context geometry). Used as fallback for
-    #      any SKU the per-card VLM couldn't resolve (image-only pages,
-    #      transient VLM failures).
-    # When embed_photos=False (Slack-bot default), col A is left empty and the
-    # workbook ships as the validated text-only v1 deliverable.
+    # Photo-bbox resolution. Three paths in priority order:
+    #   1. YOLO + matcher (preferred, ran in pipeline.py). card.photo_bbox_px
+    #      has been overwritten by the matcher with a YOLO bbox if YOLO ran
+    #      successfully for that SKU. Detect this by checking for the
+    #      <pdf_stem>.v2.yolo.json sidecar.
+    #   2. photo_vlm.resolve_catalog_photo_bboxes — LEGACY per-card VLM
+    #      fallback. Only invoked when the YOLO sidecar is absent (e.g.
+    #      ultralytics not installed, weights missing, pre-YOLO sidecars).
+    #   3. phototune.resolve_page_photo_bboxes — deterministic geometric
+    #      fallback for SKUs neither YOLO nor photo_vlm resolved.
+    # When embed_photos=False (Slack-bot default), col A is left empty.
     resolved_photo: dict[tuple[int, str], tuple[int, int, int, int]] = {}
+    yolo_sidecar = (pdf_path.with_suffix("").with_name(f"{pdf_path.stem}.v2.yolo.json")
+                    if pdf_path else None)
+    yolo_ran = yolo_sidecar is not None and yolo_sidecar.exists()
     if embed_photos and pdf_path is not None:
-        from buysheet_v2.photo_vlm import resolve_catalog_photo_bboxes  # noqa: E402
-        try:
-            vlm_resolved, vlm_usage = resolve_catalog_photo_bboxes(
-                pdf_path, extraction, page_dims,
-            )
-            resolved_photo.update(vlm_resolved)
-            print(f"[write] photo_vlm resolved {len(vlm_resolved)} bboxes  "
-                  f"({vlm_usage['calls']} fresh VLM calls)")
-        except Exception as e:
-            print(f"[write] photo_vlm failed: {type(e).__name__}: {e}; "
-                  f"falling back to heuristic only")
-        # Heuristic fallback for SKUs the VLM didn't resolve
+        if yolo_ran:
+            # Use card.photo_bbox_px set by pipeline.py's matcher.
+            yolo_count = 0
+            for card in extraction.all_cards:
+                if card.photo_bbox_px:
+                    resolved_photo[(card.page, card.sku)] = tuple(card.photo_bbox_px)
+                    yolo_count += 1
+            print(f"[write] using YOLO+matcher bboxes from card.photo_bbox_px  "
+                  f"({yolo_count}/{len(extraction.all_cards)} cards)")
+        else:
+            from buysheet_v2.photo_vlm import resolve_catalog_photo_bboxes  # noqa: E402
+            try:
+                vlm_resolved, vlm_usage = resolve_catalog_photo_bboxes(
+                    pdf_path, extraction, page_dims,
+                )
+                resolved_photo.update(vlm_resolved)
+                print(f"[write] LEGACY photo_vlm resolved {len(vlm_resolved)} bboxes  "
+                      f"({vlm_usage['calls']} fresh VLM calls)")
+            except Exception as e:
+                print(f"[write] photo_vlm failed: {type(e).__name__}: {e}; "
+                      f"falling back to heuristic only")
+        # Stage 3 fallback (phototune) — fills any SKU stage 1/2 didn't resolve.
         heuristic = _resolve_all_photo_bboxes(pdf_path, extraction, page_dims)
         for key, bbox in heuristic.items():
             resolved_photo.setdefault(key, bbox)
 
     season = normalize_season(extraction.vendor_key, wb)
 
+    truncated_total = 0
     if multi_brand:
         ws_map: dict[str, openpyxl.worksheet.worksheet.Worksheet] = {}
         # Rename the template tab to the first brand; clone for subsequent brands
@@ -293,7 +322,7 @@ def write_workbook(
         if unbranded:
             partitions[first] = partitions.get(first, []) + unbranded
         for brand_name, ws in ws_map.items():
-            _populate_workbook(
+            truncated_total += _populate_workbook(
                 ws, partitions.get(brand_name, []), conf_lookup,
                 pdf, page_dims, brand_name, resolved_photo,
             )
@@ -304,7 +333,7 @@ def write_workbook(
     else:
         # Single-brand case: keep the TEMPLATE sheet, set B1
         target_brand = distinct_brands[0] if distinct_brands else None
-        _populate_workbook(
+        truncated_total += _populate_workbook(
             template_ws, all_cards, conf_lookup,
             pdf, page_dims, target_brand, resolved_photo,
         )
@@ -318,7 +347,11 @@ def write_workbook(
     wb.save(out_path)
     if pdf is not None:
         pdf.close()
-    return out_path
+    return {
+        "out_path": out_path,
+        "truncated_cards": truncated_total,
+        "embedded_photos": len(resolved_photo),
+    }
 
 
 def _populate_workbook(
@@ -329,11 +362,16 @@ def _populate_workbook(
     page_dims: dict[int, Optional[tuple[int, int]]],
     brand_name: Optional[str],
     resolved_photo: dict[tuple[int, str], tuple[int, int, int, int]],
-) -> None:
-    """Write a card list to one worksheet starting at DATA_ROW_START."""
+) -> int:
+    """Write a card list to one worksheet starting at DATA_ROW_START.
+
+    Returns the count of cards dropped due to the template's row 883 hard cap.
+    """
+    truncated = 0
     for i, card in enumerate(cards):
         row = DATA_ROW_START + i
         if row > 883:
+            truncated = len(cards) - i
             break  # template hard cap
         conf = conf_lookup.get((card.sku, card.page))
 
@@ -341,10 +379,15 @@ def _populate_workbook(
             if field_name == "photo":
                 continue
             if field_name == "sku":
-                # SKU is the row key — always written, never blanked.
+                # SKU now respects the same red/amber tiering as other fields:
+                # if verify.py determined the VLM-extracted SKU is not present
+                # in source text on a page WITH a usable text layer, blank
+                # the cell + surface a source-text snippet in the comment.
                 value = card.sku
-                conf_value = 1.0
-                source = "sku_anchor"
+                conf_value = (conf.per_field.get("sku") if conf else None)
+                if conf_value is None:
+                    conf_value = 1.0
+                source = (conf.per_field_source.get("sku") if conf else None) or "sku_anchor"
             else:
                 value = getattr(card, field_name, None)
                 if value is None:
@@ -352,9 +395,9 @@ def _populate_workbook(
                 conf_value = (conf.per_field.get(field_name) if conf else None) or 0.0
                 source = (conf.per_field_source.get(field_name) if conf else None) or "vlm"
 
-            if field_name != "sku" and conf_value <= CONTRADICTED_THRESHOLD:
+            if conf_value <= CONTRADICTED_THRESHOLD:
                 tier = "red"
-            elif field_name != "sku" and conf_value < LOW_CONFIDENCE_THRESHOLD:
+            elif conf_value < LOW_CONFIDENCE_THRESHOLD:
                 tier = "amber"
             else:
                 tier = "ok"
@@ -362,6 +405,7 @@ def _populate_workbook(
             comment = _comment_for(
                 field_name, value, conf_value, source,
                 page=card.page, blanked=(tier == "red"),
+                sku_context=(conf.sku_context if conf else None),
             )
             _write_cell(ws, row, col, value, comment=comment, tier=tier)
 
@@ -390,3 +434,4 @@ def _populate_workbook(
                             f"crop_source={crop_source}  bbox={list(crop_bbox)}"
                         ),
                     )
+    return truncated

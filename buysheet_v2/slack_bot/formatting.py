@@ -52,6 +52,19 @@ def cached_message(file_name: str) -> str:
     )
 
 
+def _format_fill_rates(fill_rates: dict) -> str:
+    """Compact one-line per-field fill rates, with ⚠ on low fields."""
+    parts = []
+    for f, rate in fill_rates.items():
+        pct = int(round(rate * 100))
+        marker = " ⚠" if rate < 0.5 else ""
+        # Trim long field names so the line stays scannable in Slack
+        short = {"description": "desc", "standard_color": "std_col",
+                 "intro_date": "intro", "usd_cost": "cost"}.get(f, f)
+        parts.append(f"{short} {pct}%{marker}")
+    return " · ".join(parts)
+
+
 def done_message(
     file_name: str,
     *,
@@ -63,6 +76,10 @@ def done_message(
     cost_usd: float,
     is_multi_brand: bool,
     brand_count: int,
+    fill_rates: Optional[dict] = None,
+    pages_failed: Optional[list] = None,
+    truncated_cards: int = 0,
+    embedded_photos: int = 0,
 ) -> str:
     pct = (100 * cells_pass / cells_total) if cells_total else 0.0
     brand_blurb = (
@@ -70,10 +87,19 @@ def done_message(
         if is_multi_brand
         else "Single-brand catalog — one tab."
     )
+    extracted_line = f"• *{cards}* product cards extracted"
+    if pages_failed:
+        n = len(pages_failed)
+        # Only list page numbers if there aren't too many; otherwise just the count
+        if n <= 8:
+            extracted_line += f"  (⚠ {n} page{'s' if n != 1 else ''} failed: {', '.join(f'p{p}' for p in pages_failed)})"
+        else:
+            extracted_line += f"  (⚠ {n} pages failed during extraction)"
+
     parts = [
         f":white_check_mark: *Done* — buy sheet for *{file_name}* attached.",
         "",
-        f"• *{cards}* product cards extracted",
+        extracted_line,
         f"• *{pct:.1f}%* of cells verified against source text "
         f"({cells_pass}/{cells_total})",
     ]
@@ -87,6 +113,16 @@ def done_message(
             f"• :red_square: *{cells_red}* cells left blank "
             f"(the model's value contradicted the source — manual review required)"
         )
+    if truncated_cards:
+        parts.append(
+            f"• :warning: *{truncated_cards}* cards dropped — workbook hard-cap at row 883. "
+            f"Consider splitting the catalog and re-running."
+        )
+    if embedded_photos:
+        parts.append(f"• *{embedded_photos}* product photos embedded in col A")
+    if fill_rates:
+        parts.append("• Fill rate per field:")
+        parts.append(f"  `{_format_fill_rates(fill_rates)}`")
     parts.append(f"• {brand_blurb}")
     parts.append(f"• Cost: *${cost_usd:.2f}*")
     parts.append("")

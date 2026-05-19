@@ -182,10 +182,10 @@ def _process_job(client: WebClient, bot_token: str, job: JobRequest) -> None:
 
     out_path = run_dir / f"BUYSHEET_{extraction.vendor_key}_v2.xlsx"
     try:
-        write_workbook(
+        write_stats = write_workbook(
             extraction, out_path,
             pdf_path=pdf_path,
-            embed_photos=False,
+            embed_photos=True,
         )
     except Exception as exc:
         tb = traceback.format_exc(limit=2).splitlines()[-1]
@@ -198,7 +198,7 @@ def _process_job(client: WebClient, bot_token: str, job: JobRequest) -> None:
         )
         return
 
-    summary = _build_summary(extraction)
+    summary = _build_summary(extraction, write_stats)
     _safe_post(
         client, job,
         formatting.done_message(job.file_name, **summary),
@@ -257,7 +257,13 @@ def _make_progress_callback(client: WebClient, job: JobRequest):
     return cb
 
 
-def _build_summary(extraction) -> dict:
+_FIELDS_FOR_FILL_RATE = (
+    "sku", "brand", "description", "color", "standard_color",
+    "mg", "sg", "ssg", "intro_date", "usd_cost",
+)
+
+
+def _build_summary(extraction, write_stats: Optional[dict] = None) -> dict:
     s = oracle_summary(extraction)
     total = sum(st["total"] for st in s["per_field"].values())
     passing = sum(st["correct"] for st in s["per_field"].values())
@@ -283,8 +289,27 @@ def _build_summary(extraction) -> dict:
     brand_count = len(distinct_brands) or 1
     is_multi_brand = brand_count > 1
 
+    # Per-field FILL rate (populated vs total cards) — distinct from the oracle
+    # verify rate, which only counts cards where the field had a value at all.
+    # Missing fields are invisible in oracle_summary; this surfaces them.
+    n_cards = len(extraction.all_cards)
+    fill_rates: dict[str, float] = {}
+    for f in _FIELDS_FOR_FILL_RATE:
+        populated = sum(
+            1 for card in extraction.all_cards
+            if getattr(card, f, None) not in (None, "")
+        )
+        fill_rates[f] = (populated / n_cards) if n_cards else 0.0
+
+    # Pages that errored during extraction — today these are silently swallowed
+    # in the cards total. Surface so partial failures don't hide.
+    pages_failed = [pe.page for pe in extraction.pages if pe.error]
+
+    truncated_cards = (write_stats or {}).get("truncated_cards", 0)
+    embedded_photos = (write_stats or {}).get("embedded_photos", 0)
+
     return {
-        "cards": len(extraction.all_cards),
+        "cards": n_cards,
         "cells_pass": passing,
         "cells_total": total,
         "cells_amber": amber,
@@ -292,6 +317,10 @@ def _build_summary(extraction) -> dict:
         "cost_usd": extraction.cost_usd,
         "is_multi_brand": is_multi_brand,
         "brand_count": brand_count,
+        "fill_rates": fill_rates,
+        "pages_failed": pages_failed,
+        "truncated_cards": truncated_cards,
+        "embedded_photos": embedded_photos,
     }
 
 

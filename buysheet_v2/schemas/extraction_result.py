@@ -47,6 +47,13 @@ class CardConfidence(BaseModel):
                     "two models disagreed — surfaced in cell comments so the "
                     "buyer sees both candidates.",
     )
+    sku_context: Optional[str] = Field(
+        None,
+        description="Source-text region around this SKU's prefix on the source "
+                    "page. Populated only when SKU was NOT found in source text "
+                    "(likely VLM misread) so write.py can surface the context "
+                    "to the human reviewer in the blanked-cell comment.",
+    )
 
 
 class CatalogExtraction(BaseModel):

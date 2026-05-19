@@ -19,12 +19,16 @@ from __future__ import annotations
 import base64
 import io
 import json
+import logging
+import time
 from pathlib import Path
 from typing import Optional
 
 import anthropic
 import pypdfium2 as pdfium
 from pydantic import BaseModel, Field
+
+log = logging.getLogger(__name__)
 
 MODEL = "claude-sonnet-4-6"
 MAX_TOKENS = 256  # we only need a 4-int array
@@ -132,30 +136,60 @@ def extract_photo_bbox_for_sku(
     window = _make_window(sku_rect, col_w, page_w, page_h)
     crop_png = _render_window(pdf, page_no, window, page_w, page_h, sku_rect_page=sku_rect)
 
-    response = client.messages.parse(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        system=[{
-            "type": "text",
-            "text": PROMPT_SYS.replace("<SKU>", sku),
-            "cache_control": {"type": "ephemeral"},
-        }],
-        messages=[{
-            "role": "user",
-            "content": [
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "image/png",
-                        "data": base64.standard_b64encode(crop_png).decode(),
-                    },
-                },
-                {"type": "text", "text": f"Return the bbox for SKU \"{sku}\" in this crop."},
-            ],
-        }],
-        output_format=PhotoBboxResponse,
-    )
+    # Retry-with-backoff for transient Sonnet Structured Outputs errors.
+    # The "Grammar compilation timed out" 400 hits ~1-5% of calls under load
+    # and almost always clears on retry. Without this, a single hiccup mid-run
+    # bubbles up through resolve_catalog_photo_bboxes and write.py's outer
+    # try/except, causing the WHOLE catalog to fall back to phototune-only —
+    # which is why Hoka photos looked misaligned (phototune bboxes are looser
+    # than per-card VLM-resolved ones).
+    response = None
+    last_error: Optional[Exception] = None
+    for attempt in range(3):
+        try:
+            response = client.messages.parse(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=[{
+                    "type": "text",
+                    "text": PROMPT_SYS.replace("<SKU>", sku),
+                    "cache_control": {"type": "ephemeral"},
+                }],
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": base64.standard_b64encode(crop_png).decode(),
+                            },
+                        },
+                        {"type": "text", "text": f"Return the bbox for SKU \"{sku}\" in this crop."},
+                    ],
+                }],
+                output_format=PhotoBboxResponse,
+            )
+            break
+        except Exception as e:
+            last_error = e
+            msg = str(e).lower()
+            transient = (
+                "grammar compilation" in msg
+                or "internal_server_error" in msg
+                or "overloaded" in msg
+                or " 503" in msg or " 429" in msg
+            )
+            if attempt < 2 and transient:
+                wait = 1.5 * (2 ** attempt)  # 1.5s, 3s
+                log.warning("photo_vlm transient error on '%s' (attempt %d): %s — retrying in %.1fs",
+                            sku, attempt + 1, type(e).__name__, wait)
+                time.sleep(wait)
+                continue
+            raise
+    if response is None:
+        raise RuntimeError(f"photo_vlm exhausted retries for {sku}: {last_error}")
     parsed = response.parsed_output
     usage = {
         "input_tokens": getattr(response.usage, "input_tokens", 0),
@@ -247,9 +281,18 @@ def resolve_catalog_photo_bboxes(
                 if key in cache and not force:
                     resolved[(pe.page, c.sku)] = cache[key]
                     continue
-                bbox, u = extract_photo_bbox_for_sku(
-                    client, pdf, pe.page, c.sku, rect, col_w, page_w, page_h,
-                )
+                try:
+                    bbox, u = extract_photo_bbox_for_sku(
+                        client, pdf, pe.page, c.sku, rect, col_w, page_w, page_h,
+                    )
+                except Exception as e:
+                    # Per-SKU failure — log + skip this SKU only. write.py's
+                    # caller will fall back to phototune for this one SKU,
+                    # but the REST of the catalog keeps its VLM bboxes.
+                    log.warning("photo_vlm gave up on %s/%s after retries: %s",
+                                pe.page, c.sku, type(e).__name__)
+                    usage_totals["calls"] += 1
+                    continue
                 usage_totals["input_tokens"] += u["input_tokens"]
                 usage_totals["output_tokens"] += u["output_tokens"]
                 usage_totals["cache_read_tokens"] += u["cache_read_tokens"]

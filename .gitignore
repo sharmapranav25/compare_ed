@@ -62,3 +62,6 @@ TODO.md
 
 # Allow the template itself (immutable shared asset)
 !BUYSHEET_template.xlsx
+
+# YOLO weights (auto-downloaded, ~25MB binary, not committed)
+buysheet_v2/models/*.pt
