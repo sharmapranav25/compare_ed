@@ -64,6 +64,11 @@ except ImportError:
     ImageFont = None  # type: ignore
     _HAS_PIL = False
 
+try:
+    import pypdfium2 as pdfium  # type: ignore
+except ImportError:
+    pdfium = None  # type: ignore
+
 from buysheet_v2.ingest import IngestedPage
 
 log = logging.getLogger(__name__)
@@ -204,28 +209,27 @@ def _sort_row_banded(boxes: list[tuple[int, int, int, int]]
     return out
 
 
-def detect_shoes_in_image(
-    png_bytes: bytes, *, conf: float = DEFAULT_CONF, imgsz: int = DEFAULT_IMGSZ,
+def detect_shoes_in_pil(
+    pil_img: "Image.Image", *, conf: float = DEFAULT_CONF,
+    imgsz: int = DEFAULT_IMGSZ,
 ) -> list[tuple[int, int, int, int]]:
-    """Detect footwear bboxes in a page render (bytes form). Returns
-    reading-order sorted list of (x1, y1, x2, y2) in pixel coords of the
-    input image. Empty list when nothing found or detection unavailable.
+    """Detect footwear bboxes on a PIL image directly. Returns reading-order
+    sorted list of (x1, y1, x2, y2) in the **input image's pixel coords**.
 
-    imgsz controls how aggressively the page is downscaled before
-    inference. 1280=fast/missesTiny, 1920=balanced, 2560=slow/catchesTiny.
-    Pranav's pick_yolo_density() picks per-page via a Sonnet density probe.
+    Callers control the source resolution: passing a 1568-px IngestedPage
+    makes density tiers (1280/1920/2560) useless on medium+high because
+    YOLO will upscale (no new info). Passing a 3000-px hi-res render lets
+    high=2560 actually recover detail on dense grids. See run_detect_prepass
+    for the hi-res routing decision.
     """
     model = get_model()
     if model is None:
         return []
-    # ultralytics predict accepts PIL.Image directly — saves writing the
-    # PNG to disk just to read it back.
     if Image is None:
         return []
-    img = Image.open(io.BytesIO(png_bytes)).convert("RGB")
     try:
         results = model.predict(
-            source=img, conf=conf, classes=_MODEL_CLASS_IDS,
+            source=pil_img, conf=conf, classes=_MODEL_CLASS_IDS,
             verbose=False, agnostic_nms=True, imgsz=imgsz,
         )
     except Exception as exc:  # noqa: BLE001
@@ -247,34 +251,37 @@ def detect_shoes_in_image(
     return _sort_row_banded(boxes)
 
 
-def annotate_page(
-    png_bytes: bytes, bboxes: list[tuple[int, int, int, int]], out_path: Path,
-) -> None:
-    """Draw numbered red rectangles over each bbox on the page image and
-    save the annotated copy. Used as input to the Sonnet matcher: the VLM
-    sees the page WITH numbered boxes and picks which number corresponds
-    to each SKU.
+def detect_shoes_in_image(
+    png_bytes: bytes, *, conf: float = DEFAULT_CONF, imgsz: int = DEFAULT_IMGSZ,
+) -> list[tuple[int, int, int, int]]:
+    """Thin wrapper: PNG bytes → PIL → detect_shoes_in_pil. Returns bboxes
+    in the source image's coord space (typically 1568-px lores)."""
+    if Image is None:
+        return []
+    img = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+    return detect_shoes_in_pil(img, conf=conf, imgsz=imgsz)
 
-    Numbers start at 1 and follow the order bboxes are passed in (caller
-    is expected to have sorted them in reading order via _sort_row_banded).
+
+def _load_font(font_px: int):
+    """Pick a readable font with graceful fallbacks (Helvetica → /System →
+    PIL default). Parent's annotate uses 28-px minimum on the hi-res canvas;
+    we keep 20-px for the legacy lo-res annotate, bump to 28 for hi-res.
     """
-    if Image is None or ImageDraw is None:
-        raise RuntimeError("PIL not available")
-    src = Image.open(io.BytesIO(png_bytes)).convert("RGB")
-    annotated = src.copy()
-    draw = ImageDraw.Draw(annotated)
-    W, H = annotated.size
-    # Stroke width and font size scale with image so labels stay readable
-    # at both 300dpi catalog renders AND smaller VLM-target renders.
-    stroke = max(3, int(max(W, H) * 0.005))
-    font_px = max(20, int(max(W, H) * 0.025))
     try:
-        font = ImageFont.truetype("Helvetica.ttf", font_px)
+        return ImageFont.truetype("Helvetica.ttf", font_px)
     except OSError:
         try:
-            font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_px)
+            return ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc",
+                                     font_px)
         except OSError:
-            font = ImageFont.load_default()
+            return ImageFont.load_default()
+
+
+def _draw_numbered_bboxes(annotated, bboxes, stroke: int, font_px: int) -> None:
+    """Shared rectangle+badge drawing used by both lo-res and hi-res paths."""
+    draw = ImageDraw.Draw(annotated)
+    W, H = annotated.size
+    font = _load_font(font_px)
     for i, (x1, y1, x2, y2) in enumerate(bboxes, start=1):
         draw.rectangle([x1, y1, x2, y2], outline="red", width=stroke)
         label = str(i)
@@ -284,8 +291,90 @@ def annotate_page(
         by2 = min(y1 + badge_h, H)
         draw.rectangle([x1, y1, bx2, by2], fill="red")
         draw.text((x1 + font_px // 2, y1 + 2), label, fill="white", font=font)
+
+
+def annotate_page(
+    png_bytes: bytes, bboxes: list[tuple[int, int, int, int]], out_path: Path,
+) -> None:
+    """Lo-res annotation path (LEGACY fallback).
+
+    Draws numbered red rectangles over each bbox on the 1568-px page image
+    and saves the annotated copy as PNG. Used when the hi-res path
+    (annotate_page_at_scale) is unavailable — pdf doc not passed in, or
+    ImageTooLargeError fired even after the encode cascade.
+    """
+    if Image is None or ImageDraw is None:
+        raise RuntimeError("PIL not available")
+    src = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+    annotated = src.copy()
+    W, H = annotated.size
+    stroke = max(3, int(max(W, H) * 0.005))
+    font_px = max(20, int(max(W, H) * 0.025))
+    _draw_numbered_bboxes(annotated, bboxes, stroke, font_px)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     annotated.save(out_path, format="PNG", optimize=True)
+
+
+def _annotate_image_and_save(
+    annotated: "Image.Image",
+    bboxes_in_image_space: list[tuple[int, int, int, int]],
+    out_base_path: Path,
+) -> Path:
+    """Core: draw numbered red rectangles on the given PIL image + save via
+    `save_with_cascade` (PNG → JPEG-q85 fallback). Caller is responsible
+    for ensuring `bboxes_in_image_space` matches `annotated`'s pixel coords.
+
+    Returns the actual saved path (suffix may be .png or .jpg). Raises
+    `ImageTooLargeError` from the cascade if no encode strategy fits.
+    """
+    if Image is None or ImageDraw is None:
+        raise RuntimeError("PIL not available")
+    from buysheet_v2.lifted.pdf_render import save_with_cascade
+    W, H = annotated.size
+    stroke = max(3, int(max(W, H) * 0.005))
+    # Parent repo uses 28-px font min on the hi-res canvas; match that.
+    font_px = max(28, int(max(W, H) * 0.025))
+    _draw_numbered_bboxes(annotated, bboxes_in_image_space, stroke, font_px)
+    return save_with_cascade(annotated, out_base_path)
+
+
+def annotate_page_at_scale(
+    pdf: "pdfium.PdfDocument", page_no_1: int,
+    bboxes_lores: list[tuple[int, int, int, int]],
+    lores_w: int, lores_h: int,
+    out_base_path: Path,
+    target_long_edge: int = None,
+) -> Path:
+    """Hi-res annotation entry point that ALSO renders the page.
+
+    Used when caller has only lo-res bboxes and needs to produce a hi-res
+    annotated PNG. Renders at `target_long_edge` (default 3000), scales
+    bboxes 1568→hires, draws + saves. Hi-res coords confined to this call.
+
+    Prefer the inline path in `run_detect_prepass` (which calls
+    `_annotate_image_and_save` directly on a hi-res image it already has)
+    so the page isn't rendered twice — once for YOLO inference, once for
+    annotation.
+    """
+    if Image is None or ImageDraw is None:
+        raise RuntimeError("PIL not available")
+    from buysheet_v2.lifted.pdf_render import (
+        MATCHER_MAX_LONG_EDGE_PX, render_page_for_matcher,
+    )
+    if target_long_edge is None:
+        target_long_edge = MATCHER_MAX_LONG_EDGE_PX
+    annotated, hi_w, hi_h = render_page_for_matcher(
+        pdf, page_no_1, max_long_edge=target_long_edge,
+    )
+    lores_long = max(lores_w, lores_h)
+    hires_long = max(hi_w, hi_h)
+    scale = hires_long / float(lores_long) if lores_long > 0 else 1.0
+    bboxes_hires = [
+        (int(round(x1 * scale)), int(round(y1 * scale)),
+         int(round(x2 * scale)), int(round(y2 * scale)))
+        for (x1, y1, x2, y2) in bboxes_lores
+    ]
+    return _annotate_image_and_save(annotated, bboxes_hires, out_base_path)
 
 
 # Per-page settings picker: (page) -> (imgsz, reasoning)
@@ -298,16 +387,29 @@ def run_detect_prepass(
     pages: Iterable[IngestedPage], sidecar_dir: Path, *,
     pdf_stem: str, force: bool = False,
     density_picker: Optional[DensityPicker] = None,
+    pdf: "Optional[pdfium.PdfDocument]" = None,
 ) -> dict[int, dict]:
     """Serial pre-pass over all pages. For each: pick imgsz, run YOLO,
     annotate, persist. Returns {page_no: {bboxes, imgsz, imgsz_reasoning,
-    annotated_path}}.
+    annotated_path, matcher_low_res?}}.
 
-    Sidecar layout (mirrors plan's caching pattern):
+    Sidecar layout:
       <sidecar_dir>/<pdf_stem>.v2.yolo.json
-      <sidecar_dir>/<pdf_stem>.v2.yolo/page_NN_annotated.png  (per page)
+      <sidecar_dir>/<pdf_stem>.v2.yolo/page_NN_annotated.{png,jpg}
 
-    Resumable: if the sidecar JSON exists AND every annotated.png exists,
+    Hi-res annotation (3000px long-edge) is used when `pdf` is supplied AND
+    the encode cascade fits the result under Anthropic's image cap. The
+    annotated file's extension reflects which encoder strategy won — PNG
+    when text-heavy, JPEG-q85 when photo-heavy. Bboxes in the sidecar
+    remain in 1568-px space regardless.
+
+    Fallback path: if hi-res render raises ImageTooLargeError (no strategy
+    fits), or if `pdf` is None, falls back to annotating the lo-res
+    (1568-px) IngestedPage.png_bytes. That page's sidecar entry gets
+    `matcher_low_res=True` so write.py / the buyer can see when the
+    matcher saw a degraded image.
+
+    Resumable: if the sidecar JSON exists AND every annotated image exists,
     skip YOLO entirely. Pass force=True to redo from scratch.
 
     Returns {} if YOLO is unavailable. Caller is expected to fall back to
@@ -320,6 +422,12 @@ def run_detect_prepass(
     if get_model() is None:
         log.warning("yolo_detect: model load failed — skipping")
         return out
+
+    # Lazy import keeps tests/imports cheap when lifted/* isn't usable.
+    try:
+        from buysheet_v2.lifted.pdf_render import ImageTooLargeError
+    except ImportError:
+        ImageTooLargeError = RuntimeError  # type: ignore
 
     sidecar_dir.mkdir(parents=True, exist_ok=True)
     sidecar_json = sidecar_dir / f"{pdf_stem}.v2.yolo.json"
@@ -334,18 +442,28 @@ def run_detect_prepass(
         except (json.JSONDecodeError, OSError, ValueError):
             cached = {}
 
+    def _existing_annotated(base: Path) -> Optional[Path]:
+        """Match either .png (legacy + PNG-cascade winners) or .jpg (JPEG)."""
+        for ext in (".png", ".jpg"):
+            p = base.with_suffix(ext)
+            if p.exists():
+                return p
+        return None
+
     pages_list = list(pages)
     log.info("yolo_detect: %d pages to scan (cached=%d)", len(pages_list), len(cached))
     for page in pages_list:
         page_no = page.page_no
-        annotated_path = annotated_dir / f"page_{page_no:03d}_annotated.png"
+        annotated_base = annotated_dir / f"page_{page_no:03d}_annotated"
+        cached_annotated = _existing_annotated(annotated_base)
         entry = cached.get(page_no)
-        if entry and annotated_path.exists() and not force:
+        if entry and cached_annotated is not None and not force:
             out[page_no] = {
                 "bboxes": [tuple(b) for b in entry.get("bboxes", [])],
                 "imgsz": entry.get("imgsz", DEFAULT_IMGSZ),
                 "imgsz_reasoning": entry.get("imgsz_reasoning"),
-                "annotated_path": str(annotated_path),
+                "annotated_path": str(cached_annotated),
+                "matcher_low_res": entry.get("matcher_low_res", False),
             }
             continue
 
@@ -359,20 +477,96 @@ def run_detect_prepass(
                             page_no, type(exc).__name__, exc)
                 imgsz = DEFAULT_IMGSZ
 
-        bboxes = detect_shoes_in_image(page.png_bytes, imgsz=imgsz)
-        if bboxes:
+        bboxes: list[tuple[int, int, int, int]] = []
+        annotated_path: Optional[Path] = None
+        matcher_low_res = False
+        hires_yolo = False  # True iff YOLO actually ran on the hi-res render
+
+        if pdf is not None:
+            # Hi-res inference + annotation share a single render. The
+            # density picker's tiers (1280/1920/2560) only recover detail
+            # when the source actually has it — running YOLO on the 1568-px
+            # IngestedPage caps inference quality regardless of imgsz. The
+            # 3000-px render lets imgsz=2560 downscale-with-detail instead
+            # of upscale-from-nothing.
             try:
-                annotate_page(page.png_bytes, bboxes, annotated_path)
+                from buysheet_v2.lifted.pdf_render import (
+                    MATCHER_MAX_LONG_EDGE_PX, render_page_for_matcher,
+                )
+                hires_img, hi_w, hi_h = render_page_for_matcher(
+                    pdf, page_no, max_long_edge=MATCHER_MAX_LONG_EDGE_PX,
+                )
+                bboxes_hires = detect_shoes_in_pil(hires_img, imgsz=imgsz)
+                # Scale hi-res bboxes back to 1568-px space for the sidecar
+                # so downstream consumers (write._crop_card_png, photo_match
+                # lookup) keep operating in the canonical coordinate frame.
+                lores_long = max(page.width_px, page.height_px)
+                hires_long = max(hi_w, hi_h)
+                scale_down = (lores_long / float(hires_long)
+                              if hires_long > 0 else 1.0)
+                bboxes = [
+                    (int(round(x1 * scale_down)), int(round(y1 * scale_down)),
+                     int(round(x2 * scale_down)), int(round(y2 * scale_down)))
+                    for (x1, y1, x2, y2) in bboxes_hires
+                ]
+                hires_yolo = True
+                # Annotate using the SAME hi-res image we ran YOLO on, with
+                # the hi-res bboxes — no second render, no extra scaling.
+                if bboxes_hires:
+                    try:
+                        annotated_path = _annotate_image_and_save(
+                            hires_img, bboxes_hires, annotated_base,
+                        )
+                    except ImageTooLargeError as exc:
+                        log.warning(
+                            "hi-res annotate exceeded byte cap on page %d: "
+                            "%s — falling back to 1568-px annotation",
+                            page_no, exc,
+                        )
+                        matcher_low_res = True
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning(
+                            "hi-res annotate failed on page %d: %s: %s — "
+                            "falling back to lo-res", page_no,
+                            type(exc).__name__, exc,
+                        )
+                        matcher_low_res = True
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "hi-res YOLO path failed on page %d: %s: %s — falling "
+                    "back to lo-res inference", page_no,
+                    type(exc).__name__, exc,
+                )
+                hires_yolo = False
+                matcher_low_res = True
+
+        if not hires_yolo:
+            # Lo-res path: pdf wasn't supplied or hi-res path errored. YOLO
+            # inferences on the 1568-px IngestedPage; density tiers will
+            # over-upscale on medium/high.
+            bboxes = detect_shoes_in_image(page.png_bytes, imgsz=imgsz)
+            matcher_low_res = True
+
+        if bboxes and annotated_path is None:
+            # Lo-res annotation fallback (always .png).
+            fallback_path = annotated_base.with_suffix(".png")
+            try:
+                annotate_page(page.png_bytes, bboxes, fallback_path)
+                annotated_path = fallback_path
             except Exception as exc:  # noqa: BLE001
                 log.warning("annotate failed on page %d: %s: %s",
                             page_no, type(exc).__name__, exc)
-        log.info("  page %d: imgsz=%d detected=%d (%s)",
-                 page_no, imgsz, len(bboxes), reasoning or "default")
+        log.info(
+            "  page %d: imgsz=%d detected=%d (%s)%s",
+            page_no, imgsz, len(bboxes), reasoning or "default",
+            " [matcher_low_res]" if matcher_low_res else "",
+        )
         out[page_no] = {
             "bboxes": bboxes,
             "imgsz": imgsz,
             "imgsz_reasoning": reasoning,
-            "annotated_path": str(annotated_path) if annotated_path.exists() else None,
+            "annotated_path": str(annotated_path) if annotated_path else None,
+            "matcher_low_res": matcher_low_res,
         }
 
     # Persist sidecar with all entries (cached + new)
@@ -382,6 +576,7 @@ def run_detect_prepass(
             "imgsz": v["imgsz"],
             "imgsz_reasoning": v["imgsz_reasoning"],
             "annotated_path": v["annotated_path"],
+            "matcher_low_res": v.get("matcher_low_res", False),
         }
         for p, v in out.items()
     }

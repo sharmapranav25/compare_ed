@@ -27,9 +27,14 @@ ENV/
 Thumbs.db
 
 # Pipeline artifacts — never committed
-files/                      # vendor PDFs + per-doc sidecars (catalog IP)
-BUYSHEET_*.xlsx             # generated outputs
+# (inline comments aren't supported in .gitignore — keep comments on their own lines)
+# vendor PDFs + per-doc sidecars (catalog IP)
+files/
+# generated outputs
+BUYSHEET_*.xlsx
 BUYSHEET_*.report.md
+# Office lock files
+~$*
 *.v2.cards.json
 *.v2.photo_bboxes.json
 *.docling*.json
@@ -65,3 +70,4 @@ TODO.md
 
 # YOLO weights (auto-downloaded, ~25MB binary, not committed)
 buysheet_v2/models/*.pt
+*.pt

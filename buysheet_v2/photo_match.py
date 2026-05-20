@@ -128,8 +128,27 @@ def _b64_png(png_bytes: bytes) -> dict:
     }
 
 
-def _b64_png_from_path(path: Path) -> dict:
-    return _b64_png(path.read_bytes())
+def _b64_image_from_path(path: Path) -> dict:
+    """Read an image file and pick its Anthropic media_type by suffix.
+
+    The hi-res matcher annotation path may save a .jpg fallback (when the
+    PNG strategy doesn't fit Anthropic's image cap), so we infer the
+    media_type from the file extension instead of hard-coding PNG.
+    """
+    from buysheet_v2.lifted.pdf_render import media_type_for
+    return {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": media_type_for(path),
+            "data": base64.standard_b64encode(path.read_bytes()).decode(),
+        },
+    }
+
+
+# Keep the old name as a deprecated alias so other code (if any) doesn't
+# break during the C1/C2 rollout.
+_b64_png_from_path = _b64_image_from_path
 
 
 # ------------------------------------------------------------------ density picker

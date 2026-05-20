@@ -116,6 +116,11 @@ def run_pipeline(
     _emit("ingest", 0.02, f"Parsed {doc.page_count} pages from {pdf_path.name}")
 
     result = CatalogExtraction(pdf_path=str(pdf_path), vendor_key=vendor_key)
+    # Per-page matcher outcome markers, attached to CardConfidence.flags after
+    # verify_catalog runs. Values: "matcher_failed" (matcher raised),
+    # "no_match" (matcher returned but assigned no boxes). Pages where the
+    # matcher worked normally aren't in this dict.
+    page_match_markers: dict[int, str] = {}
 
     # Step 1: doc-level classify (Opus, 1 call)
     if verbose:
@@ -144,10 +149,25 @@ def run_pipeline(
         if verbose:
             print(f"[pipeline] YOLO pre-pass on {doc.page_count} pages...")
         density_picker = lambda p: pick_yolo_density(p, client=client)  # noqa: E731
+        # Open a pdfium handle for the hi-res matcher annotation path.
+        # render_page_for_matcher needs the source PDF (not just the
+        # 1568-px IngestedPage.png_bytes) so dense grid captions are
+        # legible. Hi-res coords are scaled and consumed entirely inside
+        # annotate_page_at_scale; the bbox lookup table downstream consumers
+        # read stays in 1568-px space.
+        pdfium_for_yolo = None
+        try:
+            import pypdfium2 as _pdfium
+            pdfium_for_yolo = _pdfium.PdfDocument(str(pdf_path))
+        except Exception as e:
+            if verbose:
+                print(f"  -> couldn't open pdfium handle ({type(e).__name__}: {e}) — "
+                      f"matcher will see 1568-px annotated pages")
         try:
             yolo_detections = yolo_detect.run_detect_prepass(
                 doc.pages, sidecar_dir=pdf_path.parent,
                 pdf_stem=pdf_path.stem, density_picker=density_picker,
+                pdf=pdfium_for_yolo,
             )
             total_shoes = sum(len(d["bboxes"]) for d in yolo_detections.values())
             if verbose:
@@ -158,6 +178,12 @@ def run_pipeline(
                 print(f"  -> YOLO pre-pass FAILED ({type(e).__name__}: {e}) — "
                       f"falling back to legacy photo_vlm path")
             yolo_detections = {}
+        finally:
+            if pdfium_for_yolo is not None:
+                try:
+                    pdfium_for_yolo.close()
+                except Exception:  # noqa: BLE001
+                    pass
         _emit("detect", 0.07,
               f"Detected shoes on {len(yolo_detections)} pages via YOLO")
 
@@ -207,30 +233,73 @@ def run_pipeline(
             # on the annotated page. Overwrite card.photo_bbox_px with the
             # matched bbox (which is much tighter + correctly-anchored than
             # the VLM's own photo_bbox_px from extract.py).
+            #
+            # Text-layer pre-filter: before sending the SKU list to the
+            # matcher, drop SKUs not physically present in the PDF's text
+            # layer. The matcher's first-SKU-wins de-dup
+            # (photo_match.py:243-256) is vulnerable to phantom SKUs
+            # claiming real products' numbered boxes — the pre-filter
+            # closes that gap. On image-only PDFs (text_layer_present=False)
+            # the full list is passed through unchanged.
             page_det = yolo_detections.get(page.page_no, {})
             yolo_bboxes = page_det.get("bboxes") or []
             annotated_path = page_det.get("annotated_path")
             matched_count = 0
             if yolo_bboxes and annotated_path and extracted:
-                try:
-                    matched = match_skus_to_bboxes(
-                        Path(annotated_path), extracted, yolo_bboxes,
-                        client=client,
-                    )
-                    for card in extracted:
-                        bbox = matched.get(card.sku)
-                        if bbox:
-                            card.photo_bbox_px = list(bbox)
-                            matched_count += 1
-                except Exception as e:
-                    if verbose:
-                        print(f" matcher_FAILED({type(e).__name__})", end="")
+                from buysheet_v2.sku_text_check import present_skus_in_text
+                present, text_layer_present = present_skus_in_text(
+                    page.text, [c.sku for c in extracted],
+                )
+                if text_layer_present:
+                    matcher_input = [c for c in extracted if c.sku in present]
+                    n_phantom = len(extracted) - len(matcher_input)
+                else:
+                    matcher_input = extracted
+                    n_phantom = 0
+                page_marker: Optional[str] = None
+                if not matcher_input:
+                    # All extracted SKUs were filtered out as phantoms — the
+                    # matcher never gets called, but the buyer's expectation
+                    # was "this page had YOLO detections + extracted cards"
+                    # so flag it the same as "matcher returned nothing."
+                    page_marker = "no_match"
+                else:
+                    try:
+                        matched = match_skus_to_bboxes(
+                            Path(annotated_path), matcher_input, yolo_bboxes,
+                            client=client,
+                        )
+                        if not matched:
+                            # Matcher returned an empty assignment dict
+                            page_marker = "no_match"
+                        for card in extracted:
+                            bbox = matched.get(card.sku)
+                            if bbox:
+                                card.photo_bbox_px = list(bbox)
+                                matched_count += 1
+                    except Exception as e:
+                        page_marker = "matcher_failed"
+                        if verbose:
+                            print(f" matcher_FAILED({type(e).__name__})", end="")
+                if page_marker is not None:
+                    page_match_markers[page.page_no] = page_marker
 
             page_result = PageExtraction(
                 page=page.page_no, cards=extracted, page_text=page.text,
             )
             result.pages.append(page_result)
             cards_so_far += len(extracted)
+
+            # Persist this page's sidecar (in addition to the catalog-level
+            # one written at end-of-run). Lets a crash mid-extract leave
+            # partial state on disk that C6's backfill CLI can recover.
+            # Best-effort: a write failure here doesn't fail the page.
+            try:
+                from buysheet_v2.sidecar import save_page_sidecar
+                save_page_sidecar(pdf_path, page.page_no, page_result)
+            except Exception as _e:  # noqa: BLE001
+                if verbose:
+                    print(f" sidecar_save_FAILED({type(_e).__name__})", end="")
 
             if verbose:
                 stop = e_usage.get("stop_reason", "?")
@@ -287,58 +356,6 @@ def run_pipeline(
             if verbose:
                 print(f"[pipeline] vocab enrichment skipped: {type(e).__name__}: {e}")
 
-    # VLM-as-judge: independent re-extraction by Opus 4.7 for cross-model
-    # verification. Off by default because Opus is ~5x Sonnet cost; turn on
-    # via run_judge=True for validation runs or accuracy audits. Results are
-    # merged into each card's CardConfidence.judge_agreement, then write.py
-    # factors them into the tier classification (cells where both models
-    # agree get bumped to highest confidence; disagreements get amber with
-    # both candidates in the cell comment).
-    if run_judge:
-        from buysheet_v2.judge import judge_page, merge_judge_into_confidence
-        if verbose:
-            print(f"[pipeline] running VLM-as-judge (Opus 4.7, parallel re-extraction)...")
-        _emit("judge", 0.94, "Cross-checking extraction with Opus 4.7")
-        judge_by_page: dict[int, list] = {}
-        judge_cost = 0.0
-        for page in doc.pages:
-            page_extract = next(
-                (pe for pe in result.pages if pe.page == page.page_no), None,
-            )
-            if page_extract is None or not page_extract.cards:
-                continue
-            try:
-                jcards, jusage = judge_page(
-                    page, page_extract.cards, card_bboxes=[], client=client,
-                )
-                judge_by_page[page.page_no] = jcards
-                judge_cost += jusage.get("cost_usd", 0.0)
-                result.cost_usd += jusage.get("cost_usd", 0.0)
-                result.tokens_input += jusage.get("input_tokens", 0)
-                result.tokens_output += jusage.get("output_tokens", 0)
-                result.tokens_cache_read += jusage.get("cache_read_tokens", 0)
-            except Exception as e:
-                if verbose:
-                    print(f"  [judge] page {page.page_no} failed: "
-                          f"{type(e).__name__}: {e}")
-        # Initialize confidence list if verify hasn't run yet (it hasn't)
-        if not result.confidence:
-            from buysheet_v2.schemas.extraction_result import CardConfidence
-            result.confidence = [
-                CardConfidence(sku=c.sku, page=c.page) for c in result.all_cards
-            ]
-        counts = merge_judge_into_confidence(
-            result.confidence, result.all_cards, judge_by_page,
-        )
-        if verbose:
-            ag = counts["agree"]
-            ds = counts["disagree"]
-            asym = counts["asymmetric"]
-            total = counts["total_compared"]
-            print(f"  -> judge cost ${judge_cost:.2f}  comparisons={total}  "
-                  f"agree={ag} ({100*ag/max(1,total):.1f}%)  "
-                  f"disagree={ds}  asymmetric={asym}")
-
     # Drop cards whose SKU clearly isn't a real vendor code. The VLM
     # sometimes fabricates slugified product names as SKUs on lookbook pages
     # where no real SKU is visible (Mizuno: "MXR-DENTELLE-PINK",
@@ -388,6 +405,105 @@ def run_pipeline(
     if verbose:
         print(f"  -> {passing}/{total} cells passing ({100 * passing / max(1, total):.1f}%)  "
               f"contradicted={contra} ({100 * contra / max(1, total):.1f}%)")
+
+    # Attach matcher outcome markers to per-card flags. Three sources:
+    #   1. page_match_markers — set when matcher raised ("matcher_failed")
+    #      or returned an empty assignment ("no_match"). All cards on that
+    #      page inherit the page-level marker.
+    #   2. Per-card "no_photo_match" — YOLO ran on this page AND matcher
+    #      assigned boxes to other SKUs, but THIS specific SKU got no box.
+    #      Distinguishes the "matcher worked but missed me" case from
+    #      "matcher broke for the whole page."
+    # write.py uses these flags to surface "Photo match: <marker>" in the
+    # photo cell comment so a buyer scanning the workbook can tell when a
+    # crop came from a fallback (phototune / card_bbox) instead of YOLO.
+    conf_by_key = {(c.sku, c.page): c for c in result.confidence}
+    for card in result.all_cards:
+        conf = conf_by_key.get((card.sku, card.page))
+        if conf is None:
+            continue
+        page_marker = page_match_markers.get(card.page)
+        if page_marker and page_marker not in conf.flags:
+            conf.flags.append(page_marker)
+        # Per-card no-match: YOLO ran on this page (entry exists), matcher
+        # finished (no page-level marker), but this SKU got no bbox set.
+        elif (
+            card.page in yolo_detections
+            and yolo_detections[card.page].get("bboxes")
+            and not card.photo_bbox_px
+            and "no_photo_match" not in conf.flags
+        ):
+            conf.flags.append("no_photo_match")
+
+    # VLM-as-judge (TARGETED MODE): for cells the deterministic oracle could
+    # neither confirm (≥0.7) nor contradict (≤0.05), Opus reads the page and
+    # verifies just those (sku, field, value) suspects. Cheaper than the
+    # legacy full re-extraction because the prompt is narrow and most cards
+    # carry 0-1 unverifiable fields.
+    #   - agreement → bump per_field 0.5 → 0.7, source = vlm_judge_confirmed
+    #   - disagreement → leave per_field at 0.5, store opus_value so the cell
+    #     comment shows both candidates side-by-side for the buyer
+    # Skip entirely with run_judge=False; useful for cheap previews.
+    if run_judge:
+        from buysheet_v2.judge import (
+            merge_field_verifications, verify_suspect_fields,
+        )
+
+        # Build (sku, field, value) suspects per page from confidence at 0.5
+        card_by_key = {(c.sku, c.page): c for c in result.all_cards}
+        suspects_by_page: dict[int, list[tuple[str, str, str]]] = {}
+        for conf in result.confidence:
+            card = card_by_key.get((conf.sku, conf.page))
+            if card is None:
+                continue
+            for field, conf_v in conf.per_field.items():
+                if conf_v != 0.5:
+                    continue
+                value = getattr(card, field, None)
+                if value is None:
+                    continue
+                suspects_by_page.setdefault(conf.page, []).append(
+                    (conf.sku, field, str(value))
+                )
+
+        n_suspects = sum(len(v) for v in suspects_by_page.values())
+        if n_suspects == 0:
+            if verbose:
+                print("[pipeline] judge skipped — no fields at confidence 0.5")
+        else:
+            if verbose:
+                print(f"[pipeline] judge: verifying {n_suspects} suspect "
+                      f"field(s) across {len(suspects_by_page)} page(s)...")
+            _emit("judge", 0.99,
+                  f"Cross-checking {n_suspects} unverifiable cell(s) with Opus")
+            verdicts_by_page: dict[int, list] = {}
+            judge_cost = 0.0
+            page_by_no = {p.page_no: p for p in doc.pages}
+            for page_no, suspects in suspects_by_page.items():
+                page = page_by_no.get(page_no)
+                if page is None:
+                    continue
+                try:
+                    verdicts, jusage = verify_suspect_fields(
+                        page, suspects, client=client,
+                    )
+                    verdicts_by_page[page_no] = verdicts
+                    judge_cost += jusage.get("cost_usd", 0.0)
+                    result.cost_usd += jusage.get("cost_usd", 0.0)
+                    result.tokens_input += jusage.get("input_tokens", 0)
+                    result.tokens_output += jusage.get("output_tokens", 0)
+                    result.tokens_cache_read += jusage.get("cache_read_tokens", 0)
+                except Exception as e:
+                    if verbose:
+                        print(f"  [judge] page {page_no} failed: "
+                              f"{type(e).__name__}: {e}")
+            counts = merge_field_verifications(result.confidence, verdicts_by_page)
+            if verbose:
+                print(f"  -> judge cost ${judge_cost:.2f}  "
+                      f"agreed_bump={counts['agreed_bump']}  "
+                      f"disagreed={counts['disagreed']}  "
+                      f"sku_missing={counts['sku_missing']}  "
+                      f"out_of_band={counts['out_of_band']}")
 
     if cache_sidecar:
         sidecar.write_text(result.model_dump_json(indent=2, exclude_none=False))

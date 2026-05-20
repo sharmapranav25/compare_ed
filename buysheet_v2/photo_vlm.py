@@ -224,11 +224,17 @@ def resolve_catalog_photo_bboxes(
     sidecar_path: Optional[Path] = None,
     client: Optional[anthropic.Anthropic] = None,
     force: bool = False,
+    targets: Optional[set[tuple[int, str]]] = None,
 ) -> tuple[dict[tuple[int, str], tuple[int, int, int, int]], dict]:
     """Per-card VLM photo bbox extraction across the full catalog, with caching.
 
     Loads + saves results to sidecar_path (defaults to <pdf_stem>.v2.photo_bboxes.json).
     Set force=True to ignore cache and re-call the VLM for every SKU.
+
+    `targets` restricts the work to a subset of (page, sku) pairs — used by
+    write.py's cascade to fire photo_vlm only on SKUs that phototune's
+    deterministic anchor couldn't resolve. When None, processes every card
+    (legacy default-on behavior).
 
     Returns ({(page, sku): page_bbox}, usage_summary).
     """
@@ -272,6 +278,10 @@ def resolve_catalog_photo_bboxes(
             col_w = estimate_column_width(list(sku_rects.items())) or 100
 
             for c in pe.cards:
+                if targets is not None and (pe.page, c.sku) not in targets:
+                    # Skip — caller (write.py) already has a deterministic
+                    # answer for this SKU from phototune.
+                    continue
                 key = f"{pe.page}::{c.sku}"
                 rect = sku_rects.get(c.sku)
                 if not rect:

@@ -100,6 +100,7 @@ _SOURCE_DESCRIPTIONS = {
     "cache_vlm_both_valid":         "cached vocab and VLM disagreed; both are plausible",
     "vlm_only_no_region":           "VLM extracted; source text not available to verify",
     "vlm_only_no_source":           "VLM extracted; no source confirmation",
+    "vlm_judge_confirmed":          "no text-layer signal; Opus second-opinion confirmed the value",
     "vlm_extraction_error_color_eq_description":
                                     "VLM put the description text in the color field — likely wrong",
     "contradicted":                 "the value the model extracted does NOT appear in the source page text",
@@ -109,7 +110,8 @@ _SOURCE_DESCRIPTIONS = {
 
 
 def _comment_for(field_name: str, raw_value, conf_value: float, source: str,
-                 page: int, blanked: bool, sku_context: Optional[str] = None) -> str:
+                 page: int, blanked: bool, sku_context: Optional[str] = None,
+                 judge_disagreement_value: Optional[str] = None) -> str:
     explanation = _SOURCE_DESCRIPTIONS.get(source, source)
     if blanked:
         raw_repr = f'"{raw_value}"' if raw_value is not None else "(none)"
@@ -132,10 +134,21 @@ def _comment_for(field_name: str, raw_value, conf_value: float, source: str,
             f"Reason: {explanation}\n\n"
             f"Open the source PDF at page {page} and fill this cell in by hand."
         )
-    return (
+    base = (
         f"Page {page} · confidence {conf_value:.2f}\n"
         f"Source: {explanation}"
     )
+    if judge_disagreement_value is not None:
+        # No deterministic text-layer signal AND Opus second opinion read
+        # something different from Sonnet. Surface both candidates so the
+        # buyer picks.
+        base += (
+            f"\n\nOpus second opinion disagrees:\n"
+            f"  Sonnet (in cell): {raw_value!r}\n"
+            f"  Opus read:        {judge_disagreement_value!r}\n"
+            f"Pick the correct value by opening page {page} of the source PDF."
+        )
+    return base
 
 
 def _crop_card_png(pdf: pdfium.PdfDocument, page_no_1: int, bbox_px: list[int],
@@ -268,19 +281,22 @@ def write_workbook(
     #      has been overwritten by the matcher with a YOLO bbox if YOLO ran
     #      successfully for that SKU. Detect this by checking for the
     #      <pdf_stem>.v2.yolo.json sidecar.
-    #   2. photo_vlm.resolve_catalog_photo_bboxes — LEGACY per-card VLM
-    #      fallback. Only invoked when the YOLO sidecar is absent (e.g.
-    #      ultralytics not installed, weights missing, pre-YOLO sidecars).
-    #   3. phototune.resolve_page_photo_bboxes — deterministic geometric
-    #      fallback for SKUs neither YOLO nor photo_vlm resolved.
+    #   2. phototune.resolve_page_photo_bboxes — deterministic geometric
+    #      fallback anchored on PyMuPDF SKU text-search. No API cost. Always
+    #      runs; fills any SKU YOLO didn't resolve.
+    #   3. photo_vlm.resolve_catalog_photo_bboxes — VLM fallback. Only fires
+    #      on the residual set of (page, sku) pairs that NEITHER YOLO NOR
+    #      phototune resolved. Targets the band where the deterministic
+    #      signal returned nothing (per cherry-pick design).
     # When embed_photos=False (Slack-bot default), col A is left empty.
     resolved_photo: dict[tuple[int, str], tuple[int, int, int, int]] = {}
     yolo_sidecar = (pdf_path.with_suffix("").with_name(f"{pdf_path.stem}.v2.yolo.json")
                     if pdf_path else None)
     yolo_ran = yolo_sidecar is not None and yolo_sidecar.exists()
     if embed_photos and pdf_path is not None:
+        # Stage 1 — YOLO+matcher (when present). Populates resolved_photo from
+        # card.photo_bbox_px which pipeline.py's matcher overwrote in-place.
         if yolo_ran:
-            # Use card.photo_bbox_px set by pipeline.py's matcher.
             yolo_count = 0
             for card in extraction.all_cards:
                 if card.photo_bbox_px:
@@ -288,22 +304,40 @@ def write_workbook(
                     yolo_count += 1
             print(f"[write] using YOLO+matcher bboxes from card.photo_bbox_px  "
                   f"({yolo_count}/{len(extraction.all_cards)} cards)")
-        else:
-            from buysheet_v2.photo_vlm import resolve_catalog_photo_bboxes  # noqa: E402
-            try:
-                vlm_resolved, vlm_usage = resolve_catalog_photo_bboxes(
-                    pdf_path, extraction, page_dims,
-                )
-                resolved_photo.update(vlm_resolved)
-                print(f"[write] LEGACY photo_vlm resolved {len(vlm_resolved)} bboxes  "
-                      f"({vlm_usage['calls']} fresh VLM calls)")
-            except Exception as e:
-                print(f"[write] photo_vlm failed: {type(e).__name__}: {e}; "
-                      f"falling back to heuristic only")
-        # Stage 3 fallback (phototune) — fills any SKU stage 1/2 didn't resolve.
+
+        # Stage 2 — phototune (always). Deterministic geometry anchored on
+        # PyMuPDF SKU text-search, reconciled with extract's VLM bbox via
+        # center-distance check. setdefault() preserves YOLO bboxes.
         heuristic = _resolve_all_photo_bboxes(pdf_path, extraction, page_dims)
         for key, bbox in heuristic.items():
             resolved_photo.setdefault(key, bbox)
+
+        # Stage 3 — photo_vlm (gap-filler). Per-SKU VLM call, targeted at
+        # ONLY the (page, sku) pairs that stages 1+2 left unresolved. On
+        # text-rich PDFs this set is usually empty (phototune anchored
+        # everything) so photo_vlm doesn't fire and costs $0. On
+        # image-only PDFs phototune can't anchor — photo_vlm targets all
+        # the gaps, though it depends on the same PyMuPDF anchor so it
+        # typically can't resolve them either; the cell falls through to
+        # card.photo_bbox_px / card_bbox in the per-cell crop logic below.
+        gap_targets = {
+            (card.page, card.sku)
+            for card in extraction.all_cards
+            if (card.page, card.sku) not in resolved_photo
+        }
+        if gap_targets:
+            from buysheet_v2.photo_vlm import resolve_catalog_photo_bboxes  # noqa: E402
+            try:
+                vlm_resolved, vlm_usage = resolve_catalog_photo_bboxes(
+                    pdf_path, extraction, page_dims, targets=gap_targets,
+                )
+                resolved_photo.update(vlm_resolved)
+                print(f"[write] photo_vlm filled {len(vlm_resolved)}/"
+                      f"{len(gap_targets)} gap(s)  "
+                      f"({vlm_usage['calls']} VLM calls)")
+            except Exception as e:
+                print(f"[write] photo_vlm failed: {type(e).__name__}: {e}; "
+                      f"leaving {len(gap_targets)} gap(s) for card_bbox fallback")
 
     season = normalize_season(extraction.vendor_key, wb)
 
@@ -402,10 +436,19 @@ def _populate_workbook(
             else:
                 tier = "ok"
 
+            # Surface Opus second-opinion disagreement (when verify.py couldn't
+            # ground the value AND Opus read something different) so the buyer
+            # sees both candidates in the cell comment.
+            judge_disagreement = None
+            if conf is not None:
+                agreement = conf.judge_agreement.get(field_name)
+                if agreement is not None and agreement < 1.0:
+                    judge_disagreement = conf.judge_values.get(field_name)
             comment = _comment_for(
                 field_name, value, conf_value, source,
                 page=card.page, blanked=(tier == "red"),
                 sku_context=(conf.sku_context if conf else None),
+                judge_disagreement_value=judge_disagreement,
             )
             _write_cell(ws, row, col, value, comment=comment, tier=tier)
 
@@ -424,6 +467,17 @@ def _populate_workbook(
                 crop_source = "vlm_photo_bbox"
             else:
                 crop_source = "card_bbox"
+            # Surface matcher outcome markers (set in pipeline.py after verify).
+            # A "matcher_failed" / "no_match" / "no_photo_match" flag on the
+            # card means the photo came from a fallback path (phototune /
+            # card_bbox) rather than YOLO+matcher — tell the buyer so they
+            # know which crops to spot-check first.
+            photo_match_note = ""
+            if conf is not None:
+                for marker in ("matcher_failed", "no_match", "no_photo_match"):
+                    if marker in conf.flags:
+                        photo_match_note = f"  photo_match={marker}"
+                        break
             if crop_bbox:
                 img = _crop_card_png(pdf, card.page, list(crop_bbox), w, h)
                 if img is not None:
@@ -431,7 +485,8 @@ def _populate_workbook(
                         ws, row, COL["photo"], img,
                         comment_text=(
                             f"sku={card.sku}  page={card.page}  brand={brand_name or 'n/a'}  "
-                            f"crop_source={crop_source}  bbox={list(crop_bbox)}"
+                            f"crop_source={crop_source}{photo_match_note}  "
+                            f"bbox={list(crop_bbox)}"
                         ),
                     )
     return truncated

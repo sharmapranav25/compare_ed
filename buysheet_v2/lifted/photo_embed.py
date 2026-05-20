@@ -3,9 +3,15 @@
 The two functions that survive:
 - crop_to_silo: blob-based isolation of the dominant product silhouette
   in a card bitmap (strips PPT chrome / accessory thumbnails).
-- embed_photo: openpyxl write of a PNG into a workbook cell, anchored as
-  a OneCellAnchor floating image. Google Sheets drift is corrected at
-  view time by apps_script/fix_images.gs.
+- embed_photo: openpyxl write of a PNG into a workbook cell anchored as
+  a TwoCellAnchor (editAs="twoCell"). Both the top-left AND bottom-right
+  corners pin to cells, so the image moves+resizes with the cell instead
+  of floating above it. Excel respects this directly. Google Sheets still
+  imports as a floating image — run apps_script/fix_images.gs after
+  import to convert those to true in-cell CellImage objects.
+
+Previously this used OneCellAnchor which only pinned the top-left corner,
+producing images that visibly hovered over the cell.
 """
 from __future__ import annotations
 
@@ -14,6 +20,9 @@ from pathlib import Path
 
 from openpyxl.comments import Comment
 from openpyxl.drawing.image import Image as XLImage
+from openpyxl.drawing.spreadsheet_drawing import (
+    AnchorMarker, TwoCellAnchor,
+)
 from PIL import Image as PILImage
 
 try:
@@ -116,7 +125,18 @@ def embed_photo(
     img.save(buf, format="PNG")
     buf.seek(0)
     cell = ws.cell(row, col)
-    ws.add_image(XLImage(buf), cell.coordinate)
+    xlimg = XLImage(buf)
+    # TwoCellAnchor with editAs="twoCell" pins BOTH corners to cells —
+    # the image is owned by the cell rectangle (row,col) → (row+1,col+1)
+    # and moves + resizes with the cell. OneCellAnchor (the previous
+    # behavior) only pinned the top-left so the image visibly hovered.
+    # AnchorMarker uses 0-indexed coords; openpyxl row/col are 1-indexed.
+    from_marker = AnchorMarker(col=col - 1, colOff=0, row=row - 1, rowOff=0)
+    to_marker = AnchorMarker(col=col, colOff=0, row=row, rowOff=0)
+    xlimg.anchor = TwoCellAnchor(
+        editAs="twoCell", _from=from_marker, to=to_marker,
+    )
+    ws.add_image(xlimg)
     if comment_text:
         cell.comment = Comment(comment_text, "Kith Buysheet Agent v2")
     return True

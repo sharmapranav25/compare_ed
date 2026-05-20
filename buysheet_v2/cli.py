@@ -91,6 +91,31 @@ def _cmd_cost(args: argparse.Namespace) -> int:
     return 2
 
 
+def _cmd_backfill_photos(args: argparse.Namespace) -> int:
+    """Re-run the YOLO+matcher on cached per-page sidecars, updating any card
+    whose photo_bbox_px is unset. Useful after a fresh YOLO sidecar (new
+    weights, re-detect) or after C1/C2's hi-res annotation lands — pick up
+    new matches without re-extracting from scratch.
+
+    Prereqs (on disk from a prior `buysheet_v2 run` invocation):
+      <pdf>.v2.yolo.json      — YOLO bboxes + annotated paths
+      <pdf>.v2.pages/NN.json  — per-page sidecars
+
+    Outputs: per-page sidecars are updated in place with new photo_bbox_px
+    values on cards previously missing one. Other fields are untouched.
+    """
+    from buysheet_v2.backfill import backfill_photos
+    pdf_path: Path = args.pdf
+    if not pdf_path.exists():
+        print(f"[backfill] PDF not found: {pdf_path}", file=sys.stderr)
+        return 1
+    summary = backfill_photos(pdf_path, force=args.force, verbose=True)
+    # Non-zero exit if nothing was scannable — useful for CI / scripting
+    if summary["pages_scanned"] == 0:
+        return 2
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="buysheet_v2")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -112,6 +137,18 @@ def main(argv: list[str] | None = None) -> int:
     p_cost = sub.add_parser("cost", help="per-phase token/dollar breakdown")
     p_cost.add_argument("pdf", type=Path)
     p_cost.set_defaults(func=_cmd_cost)
+
+    p_bf = sub.add_parser(
+        "backfill-photos",
+        help="re-run YOLO+matcher on cached per-page sidecars to fill missing photo_bbox_px",
+    )
+    p_bf.add_argument("pdf", type=Path,
+                      help="the original PDF whose .v2.yolo.json + .v2.pages/ live alongside it")
+    p_bf.add_argument(
+        "--force", action="store_true",
+        help="re-run matcher even on cards that already have photo_bbox_px set",
+    )
+    p_bf.set_defaults(func=_cmd_backfill_photos)
 
     args = ap.parse_args(argv)
     return args.func(args)
